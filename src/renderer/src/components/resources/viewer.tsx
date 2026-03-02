@@ -24,14 +24,12 @@ const Viewer: React.FC<Props> = (props) => {
   const getContent = async (): Promise<void> => {
     try {
       let fileContent: string
-      console.log('Viewer: Loading content', { type, path, title, privderType })
       if (type === 'Inline') {
         fileContent = await getFileStr('config.yaml')
         language = 'yaml'
       } else if (path) {
         fileContent = await getFileStr(path)
       } else {
-        console.error('Viewer: Path is empty for non-Inline type')
         setCurrData('')
         return
       }
@@ -59,12 +57,10 @@ const Viewer: React.FC<Props> = (props) => {
             if (targetObj) {
               setCurrData(yaml.dump(targetObj))
             } else {
-              console.log('Viewer: Using raw file content (target object not found)')
               setCurrData(fileContent)
             }
           }
         } else {
-          console.log('Viewer: Using raw file content (not an object or empty)')
           setCurrData(fileContent)
         }
       } catch (error) {

@@ -33,12 +33,12 @@ export async function generateProfile(): Promise<void> {
   const { diffWorkDir = false, controlDns = true, controlSniff = true } = await getAppConfig()
   const currentProfileConfig = await getProfile(current)
   rawProfileStr = await getProfileStr(current)
-  currentProfileStr = stringifyYaml(currentProfileConfig)
   const currentProfile = await overrideProfile(current, currentProfileConfig)
-  overrideProfileStr = stringifyYaml(currentProfile)
+  currentProfileStr = stringifyYaml(currentProfile)
+  overrideProfileStr = currentProfileStr
   const controledMihomoConfig = await getControledMihomoConfig()
 
-  const configToMerge = JSON.parse(JSON.stringify(controledMihomoConfig))
+  const configToMerge = { ...controledMihomoConfig }
   if (!controlDns) {
     delete configToMerge.dns
     delete configToMerge.hosts
@@ -47,7 +47,7 @@ export async function generateProfile(): Promise<void> {
     delete configToMerge.sniffer
   }
 
-  const profile = deepMerge(JSON.parse(JSON.stringify(currentProfile)), configToMerge)
+  const profile = deepMerge(structuredClone(currentProfile) as MihomoConfig, configToMerge)
 
   await cleanProfile(profile, controlDns, controlSniff)
 
