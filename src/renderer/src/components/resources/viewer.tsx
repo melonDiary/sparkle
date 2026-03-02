@@ -18,48 +18,62 @@ const Viewer: React.FC<Props> = (props) => {
   const { type, path, title, format, privderType, onClose } = props
   const { appConfig: { disableAnimation = false } = {} } = useAppConfig()
   const [currData, setCurrData] = useState('')
+  const [saving, setSaving] = useState(false)
   let language: Language = !format || format === 'YamlRule' ? 'yaml' : 'text'
 
   const getContent = async (): Promise<void> => {
-    let fileContent: string
-    if (type === 'Inline') {
-      fileContent = await getFileStr('config.yaml')
-      language = 'yaml'
-    } else {
-      fileContent = await getFileStr(path)
-    }
     try {
-      const parsedYaml = yaml.load(fileContent)
-      if (parsedYaml && typeof parsedYaml === 'object') {
-        const yamlObj = parsedYaml as Record<string, unknown>
-        const payload = yamlObj[privderType]?.[title]?.payload
-        if (payload) {
-          if (privderType === 'proxy-providers') {
-            setCurrData(
-              yaml.dump({
-                proxies: payload
-              })
-            )
+      let fileContent: string
+      console.log('Viewer: Loading content', { type, path, title, privderType })
+      if (type === 'Inline') {
+        fileContent = await getFileStr('config.yaml')
+        language = 'yaml'
+      } else if (path) {
+        fileContent = await getFileStr(path)
+      } else {
+        console.error('Viewer: Path is empty for non-Inline type')
+        setCurrData('')
+        return
+      }
+      try {
+        const parsedYaml = yaml.load(fileContent)
+        if (parsedYaml && typeof parsedYaml === 'object') {
+          const yamlObj = parsedYaml as Record<string, unknown>
+          const payload = yamlObj[privderType]?.[title]?.payload
+          if (payload) {
+            if (privderType === 'proxy-providers') {
+              setCurrData(
+                yaml.dump({
+                  proxies: payload
+                })
+              )
+            } else {
+              setCurrData(
+                yaml.dump({
+                  rules: payload
+                })
+              )
+            }
           } else {
-            setCurrData(
-              yaml.dump({
-                rules: payload
-              })
-            )
+            const targetObj = yamlObj[privderType]?.[title]
+            if (targetObj) {
+              setCurrData(yaml.dump(targetObj))
+            } else {
+              console.log('Viewer: Using raw file content (target object not found)')
+              setCurrData(fileContent)
+            }
           }
         } else {
-          const targetObj = yamlObj[privderType]?.[title]
-          if (targetObj) {
-            setCurrData(yaml.dump(targetObj))
-          } else {
-            setCurrData(fileContent)
-          }
+          console.log('Viewer: Using raw file content (not an object or empty)')
+          setCurrData(fileContent)
         }
-      } else {
+      } catch (error) {
+        console.error('Viewer: Failed to parse YAML, using raw content:', error)
         setCurrData(fileContent)
       }
     } catch (error) {
-      setCurrData(fileContent)
+      console.error('Viewer: Failed to load file content:', error)
+      alert(`加载文件失败: ${error instanceof Error ? error.message : String(error)}`)
     }
   }
 
@@ -99,9 +113,18 @@ const Viewer: React.FC<Props> = (props) => {
             <Button
               size="sm"
               color="primary"
+              isLoading={saving}
               onPress={async () => {
-                await setFileStr(path, currData)
-                onClose()
+                setSaving(true)
+                try {
+                  await setFileStr(path, currData)
+                  onClose()
+                } catch (error) {
+                  console.error('Save failed:', error)
+                  alert(`保存失败: ${error instanceof Error ? error.message : String(error)}`)
+                } finally {
+                  setSaving(false)
+                }
               }}
             >
               保存

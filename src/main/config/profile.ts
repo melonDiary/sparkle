@@ -355,12 +355,31 @@ export async function getFileStr(path: string): Promise<string> {
 export async function setFileStr(path: string, content: string): Promise<void> {
   const { diffWorkDir = false } = await getAppConfig()
   const { current } = await getProfileConfig()
+  let target: string
   if (isAbsolutePath(path)) {
-    await mkdir(dirname(path), { recursive: true })
-    await writeFile(path, content, 'utf-8')
+    target = path
   } else {
-    const target = join(diffWorkDir ? mihomoProfileWorkDir(current) : mihomoWorkDir(), path)
-    await mkdir(dirname(target), { recursive: true })
+    target = join(diffWorkDir ? mihomoProfileWorkDir(current) : mihomoWorkDir(), path)
+  }
+
+  const targetDir = dirname(target)
+  await mkdir(targetDir, { recursive: true })
+
+  try {
     await writeFile(target, content, 'utf-8')
+  } catch (error) {
+    const err = error as NodeJS.ErrnoException
+    if (err.code === 'EACCES') {
+      try {
+        await rm(target, { force: true })
+        await writeFile(target, content, 'utf-8')
+      } catch (retryError) {
+        throw new Error(
+          `无法写入文件 ${target}，权限不足: ${retryError instanceof Error ? retryError.message : String(retryError)}`
+        )
+      }
+    } else {
+      throw error
+    }
   }
 }
