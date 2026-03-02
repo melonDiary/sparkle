@@ -3,22 +3,16 @@ import { pacPort, startPacServer, stopPacServer } from '../resolve/server'
 import { promisify } from 'util'
 import { execFile } from 'child_process'
 import { servicePath } from '../utils/dirs'
-import { net } from 'electron'
 import { disableProxy, setPac, setProxy } from '../service/api'
 
 let defaultBypass: string[]
-let triggerSysProxyTimer: NodeJS.Timeout | null = null
+let pacServerStarted = false
 
 export async function triggerSysProxy(enable: boolean, onlyActiveDevice: boolean): Promise<void> {
-  if (net.isOnline()) {
-    if (enable) {
-      await setSysProxy(onlyActiveDevice)
-    } else {
-      await disableSysProxy(onlyActiveDevice)
-    }
+  if (enable) {
+    await setSysProxy(onlyActiveDevice)
   } else {
-    if (triggerSysProxyTimer) clearTimeout(triggerSysProxyTimer)
-    triggerSysProxyTimer = setTimeout(() => triggerSysProxy(enable, onlyActiveDevice), 5000)
+    await disableSysProxy(onlyActiveDevice)
   }
 }
 
@@ -68,7 +62,6 @@ async function setSysProxy(onlyActiveDevice: boolean): Promise<void> {
       '172.31.*',
       '<local>'
     ]
-  await startPacServer()
   const { sysProxy } = await getAppConfig()
   const { mode, host, bypass = defaultBypass, settingMode = 'exec' } = sysProxy
   const { 'mixed-port': port = 7890 } = await getControledMihomoConfig()
@@ -77,6 +70,12 @@ async function setSysProxy(onlyActiveDevice: boolean): Promise<void> {
 
   switch (mode || 'manual') {
     case 'auto': {
+      if (!pacServerStarted) {
+        pacServerStarted = true
+        startPacServer().catch(() => {
+          pacServerStarted = false
+        })
+      }
       if (useService) {
         try {
           await setPac(`http://${host || '127.0.0.1'}:${pacPort}/pac`, '', onlyActiveDevice)

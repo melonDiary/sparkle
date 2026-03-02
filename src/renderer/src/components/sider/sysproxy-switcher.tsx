@@ -41,16 +41,25 @@ const SysproxySwitcher: React.FC<Props> = (props) => {
 
   const transform = tf ? { x: tf.x, y: tf.y, scaleX: 1, scaleY: 1 } : null
   const disabled = mixedPort == 0
-  const onChange = async (enable: boolean): Promise<void> => {
+  const [localEnable, setLocalEnable] = React.useState(enable ?? false)
+
+  React.useEffect(() => {
+    setLocalEnable(enable ?? false)
+  }, [enable])
+
+  const onChange = async (newEnable: boolean): Promise<void> => {
     if (mode == 'manual' && disabled) return
-    try {
-      await triggerSysProxy(enable, onlyActiveDevice)
-      await patchAppConfig({ sysProxy: { enable } })
-      window.electron.ipcRenderer.send('updateFloatingWindow')
-      window.electron.ipcRenderer.send('updateTrayMenu')
-    } catch (e) {
+    setLocalEnable(newEnable)
+
+    patchAppConfig({ sysProxy: { enable: newEnable } }).catch(() => {})
+    window.electron.ipcRenderer.send('updateFloatingWindow')
+    window.electron.ipcRenderer.send('updateTrayMenu')
+
+    triggerSysProxy(newEnable, onlyActiveDevice).catch((e: Error) => {
       alert(e)
-    }
+      setLocalEnable(enable ?? false)
+      patchAppConfig({ sysProxy: { enable: enable ?? false } }).catch(() => {})
+    })
   }
 
   if (iconOnly) {
@@ -103,8 +112,8 @@ const SysproxySwitcher: React.FC<Props> = (props) => {
               />
             </Button>
             <BorderSwitch
-              isShowBorder={match && enable}
-              isSelected={!(mode != 'auto' && disabled) && enable}
+              isShowBorder={match && localEnable}
+              isSelected={!(mode != 'auto' && disabled) && localEnable}
               isDisabled={mode == 'manual' && disabled}
               onValueChange={onChange}
             />
