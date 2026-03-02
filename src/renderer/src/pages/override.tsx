@@ -104,8 +104,9 @@ const Override: React.FC = () => {
       event.stopPropagation()
       if (isProcessingDrop.current) return
       isProcessingDrop.current = true
-      if ((event as DragEvent).dataTransfer?.files) {
-        const file = (event as DragEvent).dataTransfer?.files[0]
+      const files = (event as DragEvent).dataTransfer?.files
+      if (files && files.length > 0) {
+        const file = files[0]
         if (
           file.name.endsWith('.js') ||
           file.name.endsWith('.yml') ||

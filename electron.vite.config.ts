@@ -18,10 +18,34 @@ const monacoEditorPlugin = isObjectWithDefaultFunction(monacoEditorPluginModule)
 
 export default defineConfig({
   main: {
-    plugins: [externalizeDepsPlugin()]
+    plugins: [
+      externalizeDepsPlugin({
+        exclude: [
+          '@electron-toolkit/utils',
+          '@electron-toolkit/preload',
+          'axios',
+          'yaml',
+          'dayjs',
+          'adm-zip',
+          'iconv-lite',
+          'ws',
+          'express',
+          'crypto-js',
+          'webdav',
+          'is-cidr',
+          'is-ip',
+          'file-icon',
+          'file-icon-info'
+        ]
+      })
+    ]
   },
   preload: {
-    plugins: [externalizeDepsPlugin()]
+    plugins: [
+      externalizeDepsPlugin({
+        exclude: ['@electron-toolkit/utils', '@electron-toolkit/preload']
+      })
+    ]
   },
   renderer: {
     build: {

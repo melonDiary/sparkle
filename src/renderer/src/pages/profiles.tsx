@@ -184,8 +184,9 @@ const Profiles: React.FC = () => {
     const handleDrop = async (event: Event): Promise<void> => {
       event.preventDefault()
       event.stopPropagation()
-      if ((event as DragEvent).dataTransfer?.files) {
-        const file = (event as DragEvent).dataTransfer?.files[0]
+      const files = (event as DragEvent).dataTransfer?.files
+      if (files && files.length > 0) {
+        const file = files[0]
         if (
           file.name.endsWith('.yml') ||
           file.name.endsWith('.yaml') ||
