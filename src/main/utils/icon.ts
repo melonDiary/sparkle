@@ -2,12 +2,62 @@ import axios from 'axios'
 import { getControledMihomoConfig } from '../config'
 import fs, { existsSync } from 'fs'
 import path from 'path'
-import { getIcon } from 'file-icon-info'
 import { windowsDefaultIcon, darwinDefaultIcon, otherDevicesIcon } from './defaultIcon'
 import { app } from 'electron'
 import os from 'os'
 import crypto from 'crypto'
-import { exec } from 'child_process'
+import { exec, execFile, ChildProcess } from 'child_process'
+
+// Fix FileIconInfo.exe path for packaged app
+type GetIconWithProcess = (
+  filePath: string,
+  callback: (data: string) => void
+) => ChildProcess | undefined
+let getIconWithProcess: GetIconWithProcess | null = null
+
+if (process.platform === 'win32') {
+  try {
+    const fileIconInfoPath = path.join(app.getAppPath(), '..', 'file-icon-info', 'FileIconInfo.exe')
+    const fallbackPath = path.join(
+      __dirname,
+      '..',
+      '..',
+      '..',
+      'node_modules',
+      'file-icon-info',
+      'dist',
+      'FileIconInfo.exe'
+    )
+
+    let exePath = fileIconInfoPath
+    if (!existsSync(exePath) && existsSync(fallbackPath)) {
+      exePath = fallbackPath
+    }
+
+    if (existsSync(exePath)) {
+      getIconWithProcess = (filePath: string, callback: (data: string) => void) => {
+        const child = execFile(exePath, [], (error, stdout) => {
+          if (error) {
+            console.debug(`FileIconInfo.exe error: ${error.message}`)
+            // Call callback with empty string to indicate failure, but don't throw
+            callback('')
+          } else {
+            callback(stdout.trim())
+          }
+        })
+        child.stdin?.write(`${filePath}\n`)
+        child.stdin?.end()
+        return child
+      }
+    }
+  } catch (err) {
+    // If we can't fix the path, just use the original getIcon
+    console.debug(
+      'Could not set up custom FileIconInfo.exe path:',
+      err instanceof Error ? err.message : err
+    )
+  }
+}
 
 export function isIOSApp(appPath: string): boolean {
   const appDir = appPath.endsWith('.app')
@@ -213,13 +263,42 @@ export async function getIconDataURL(appPath: string): Promise<string> {
         }
 
         const iconBuffer = await new Promise<Buffer>((resolve, reject) => {
-          getIcon(targetPath, (b64d) => {
-            try {
-              resolve(Buffer.from(b64d, 'base64'))
-            } catch (err) {
-              reject(err)
+          const timeout = setTimeout(() => {
+            reject(new Error('Icon extraction timeout'))
+          }, 5000)
+
+          let child: ChildProcess | undefined
+          try {
+            if (getIconWithProcess) {
+              child = getIconWithProcess(targetPath, (b64d) => {
+                clearTimeout(timeout)
+                try {
+                  if (!b64d) {
+                    throw new Error('Empty icon data')
+                  }
+                  resolve(Buffer.from(b64d, 'base64'))
+                } catch (err) {
+                  reject(err)
+                }
+              })
+            } else {
+              clearTimeout(timeout)
+              reject(new Error('getIconWithProcess not initialized'))
+              return
             }
-          })
+          } catch (err) {
+            clearTimeout(timeout)
+            reject(err)
+          }
+
+          // Kill child process on timeout
+          timeout.unref()
+          const timeoutRef = setTimeout(() => {
+            if (child) {
+              child.kill()
+            }
+          }, 5000)
+          timeoutRef.unref()
         })
 
         if (tempLinkPath && fs.existsSync(tempLinkPath)) {
@@ -231,7 +310,12 @@ export async function getIconDataURL(appPath: string): Promise<string> {
         }
 
         return `data:image/png;base64,${iconBuffer.toString('base64')}`
-      } catch {
+      } catch (err) {
+        // Silently fall back to default icon on any error
+        console.debug(
+          `Failed to extract icon from ${appPath}:`,
+          err instanceof Error ? err.message : err
+        )
         return windowsDefaultIcon
       }
     } else {

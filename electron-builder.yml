@@ -18,6 +18,8 @@ files:
 extraResources:
   - from: './extra/'
     to: ''
+  - from: './node_modules/file-icon-info/dist/FileIconInfo.exe'
+    to: 'file-icon-info/FileIconInfo.exe'
 protocols:
   name: 'Sparkle URI Scheme'
   schemes:
