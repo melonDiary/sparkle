@@ -10,6 +10,7 @@ import { useAppConfig } from '@renderer/hooks/use-app-config'
 import { readImageFileDataURL } from '@renderer/utils/ipc'
 import { platform } from '@renderer/utils/init'
 import templateTrayIcon from '../../../../../resources/iconTemplate.png'
+import { IPC_EVENTS } from '../../../../shared/ipc'
 import TrafficChart from './traffic-chart'
 
 let currentUpload: number | undefined = undefined
@@ -110,10 +111,10 @@ const ConnCard: React.FC<Props> = (props) => {
       }
     }
 
-    window.electron.ipcRenderer.on('mihomoTraffic', handleTraffic)
+    window.electron.ipcRenderer.on(IPC_EVENTS.MIHOMO_TRAFFIC, handleTraffic)
 
     return (): void => {
-      window.electron.ipcRenderer.removeAllListeners('mihomoTraffic')
+      window.electron.ipcRenderer.removeAllListeners(IPC_EVENTS.MIHOMO_TRAFFIC)
       if (updateTimeoutRef.current) {
         clearTimeout(updateTimeoutRef.current)
       }

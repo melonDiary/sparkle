@@ -20,26 +20,27 @@ import { execWithElevation } from '../utils/elevation'
 import { decryptAgeText, encryptAgeText, isAgeEncryptedText } from '../utils/age'
 import { isHttpUrl } from '../utils/url'
 import { requestRemoteText } from '../utils/remote-request'
+import { CachedYamlStore } from './cached-yaml-store'
 
-let profileConfig: ProfileConfig // profile.yaml
+const profileConfigStore = new CachedYamlStore<ProfileConfig>({
+  path: profileConfigPath(),
+  createDefault: () => ({ items: [] }),
+  normalize: (value) =>
+    typeof value === 'object' && value !== null ? (value as ProfileConfig) : { items: [] },
+  initializeOnMissing: false
+})
 const FILE_PERMISSION_ELEVATION_REQUIRED = 'FILE_PERMISSION_ELEVATION_REQUIRED'
 
 export function getCertFingerprint(cert: tls.PeerCertificate) {
   return crypto.createHash('sha256').update(cert.raw).digest('hex').toUpperCase()
 }
 
-export async function getProfileConfig(force = false): Promise<ProfileConfig> {
-  if (force || !profileConfig) {
-    const data = await readFile(profileConfigPath(), 'utf-8')
-    profileConfig = parseYaml(data) || { items: [] }
-  }
-  if (typeof profileConfig !== 'object') profileConfig = { items: [] }
-  return profileConfig
+export function getProfileConfig(force = false): Promise<ProfileConfig> {
+  return profileConfigStore.get(force)
 }
 
-export async function setProfileConfig(config: ProfileConfig): Promise<void> {
-  profileConfig = config
-  await writeFile(profileConfigPath(), stringifyYaml(config), 'utf-8')
+export function setProfileConfig(config: ProfileConfig): Promise<void> {
+  return profileConfigStore.set(config)
 }
 
 export async function getProfileItem(id: string | undefined): Promise<ProfileItem | undefined> {
@@ -195,7 +196,7 @@ export async function createProfile(item: Partial<ProfileItem>): Promise<Profile
           proxyPort: newItem.useProxy ? mixedPort : undefined,
           userAgent: newItem.ua || (await getUserAgent())
         })
-/*
+        /*
           if (item.fingerprint) {
             const expected = item.fingerprint.replace(/:/g, '').toUpperCase()
             const verify = (s: tls.TLSSocket) => {

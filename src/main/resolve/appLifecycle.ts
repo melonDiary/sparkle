@@ -3,6 +3,7 @@ import { stopCore } from '../core/manager'
 import { stopNetworkDetection } from '../core/network'
 import { disableSysProxySync, triggerSysProxy } from '../sys/sysproxy'
 import { appendAppLog } from '../utils/log'
+import { IPC_EVENTS } from '../../shared/ipc'
 
 interface AppQuitLifecycleContext {
   getMainWindow: () => BrowserWindow | null
@@ -97,12 +98,12 @@ function showQuitConfirmDialog(context: AppQuitLifecycleContext): Promise<boolea
 
     const delay = context.showWindow()
     setTimeout(() => {
-      context.getMainWindow()?.webContents.send('show-quit-confirm')
+      context.getMainWindow()?.webContents.send(IPC_EVENTS.SHOW_QUIT_CONFIRM)
       const handleQuitConfirm = (_event: IpcMainEvent, confirmed: boolean): void => {
-        ipcMain.off('quit-confirm-result', handleQuitConfirm)
+        ipcMain.off(IPC_EVENTS.QUIT_CONFIRM_RESULT, handleQuitConfirm)
         resolve(confirmed)
       }
-      ipcMain.once('quit-confirm-result', handleQuitConfirm)
+      ipcMain.once(IPC_EVENTS.QUIT_CONFIRM_RESULT, handleQuitConfirm)
     }, delay)
   })
 }

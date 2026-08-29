@@ -2,23 +2,23 @@ import { overrideConfigPath, overridePath } from '../utils/dirs'
 import { getControledMihomoConfig } from './controledMihomo'
 import { readFile, writeFile, rm } from 'fs/promises'
 import { existsSync } from 'fs'
-import { parseYaml, stringifyYaml } from '../utils/yaml'
 import { requestRemoteText } from '../utils/remote-request'
+import { CachedYamlStore } from './cached-yaml-store'
 
-let overrideConfig: OverrideConfig // override.yaml
+const overrideConfigStore = new CachedYamlStore<OverrideConfig>({
+  path: overrideConfigPath(),
+  createDefault: () => ({ items: [] }),
+  normalize: (value) =>
+    typeof value === 'object' && value !== null ? (value as OverrideConfig) : { items: [] },
+  initializeOnMissing: false
+})
 
-export async function getOverrideConfig(force = false): Promise<OverrideConfig> {
-  if (force || !overrideConfig) {
-    const data = await readFile(overrideConfigPath(), 'utf-8')
-    overrideConfig = parseYaml<OverrideConfig>(data) || { items: [] }
-  }
-  if (typeof overrideConfig !== 'object') overrideConfig = { items: [] }
-  return overrideConfig
+export function getOverrideConfig(force = false): Promise<OverrideConfig> {
+  return overrideConfigStore.get(force)
 }
 
-export async function setOverrideConfig(config: OverrideConfig): Promise<void> {
-  overrideConfig = config
-  await writeFile(overrideConfigPath(), stringifyYaml(overrideConfig), 'utf-8')
+export function setOverrideConfig(config: OverrideConfig): Promise<void> {
+  return overrideConfigStore.set(config)
 }
 
 export async function getOverrideItem(id: string | undefined): Promise<OverrideItem | undefined> {

@@ -5,6 +5,7 @@ import { useGroups } from './hooks/use-groups'
 import { mihomoChangeProxy, mihomoGroupDelay, mihomoCloseConnections } from './utils/ipc'
 import { useAppConfig } from './hooks/use-app-config'
 import { calcTraffic } from './utils/calc'
+import { IPC_EVENTS } from '../../shared/ipc'
 
 interface TrafficData {
   up: number
@@ -20,11 +21,11 @@ const TrayMenuApp: React.FC = () => {
   const [testingGroup, setTestingGroup] = useState<string | null>(null)
 
   useEffect(() => {
-    window.electron.ipcRenderer.on('mihomoTraffic', (_e, info: TrafficData) => {
+    window.electron.ipcRenderer.on(IPC_EVENTS.MIHOMO_TRAFFIC, (_e, info: TrafficData) => {
       setTraffic(info)
     })
     return () => {
-      window.electron.ipcRenderer.removeAllListeners('mihomoTraffic')
+      window.electron.ipcRenderer.removeAllListeners(IPC_EVENTS.MIHOMO_TRAFFIC)
     }
   }, [])
 

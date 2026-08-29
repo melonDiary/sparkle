@@ -1,4 +1,5 @@
 import BasePage from '@renderer/components/base/base-page'
+import { IPC_EVENTS } from '../../../shared/ipc'
 import { mihomoCloseConnections, mihomoCloseConnection } from '@renderer/utils/ipc'
 import React, { Key, KeyboardEvent, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { flushSync } from 'react-dom'
@@ -402,10 +403,10 @@ const Connections: React.FC = () => {
       }
     }
 
-    window.electron.ipcRenderer.on('mihomoConnections', handleConnections)
+    window.electron.ipcRenderer.on(IPC_EVENTS.MIHOMO_CONNECTIONS, handleConnections)
 
     return (): void => {
-      window.electron.ipcRenderer.removeAllListeners('mihomoConnections')
+      window.electron.ipcRenderer.removeAllListeners(IPC_EVENTS.MIHOMO_CONNECTIONS)
     }
   }, [connectionInterval])
 

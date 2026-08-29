@@ -20,29 +20,29 @@ describe('ipc registration', () => {
 
   it('registers a handler once', () => {
     const handler = vi.fn()
-    registerIpcHandler('example', handler)
+    registerIpcHandler('getAppConfig', handler)
 
-    expect(handle).toHaveBeenCalledWith('example', handler)
+    expect(handle).toHaveBeenCalledWith('getAppConfig', handler)
     expect(removeHandler).not.toHaveBeenCalled()
   })
 
   it('removes an existing handler before replacing it', () => {
     const first = vi.fn()
     const second = vi.fn()
-    registerIpcHandler('example', first)
-    registerIpcHandler('example', second)
+    registerIpcHandler('getAppConfig', first)
+    registerIpcHandler('getAppConfig', second)
 
-    expect(removeHandler).toHaveBeenCalledWith('example')
-    expect(handle).toHaveBeenLastCalledWith('example', second)
+    expect(removeHandler).toHaveBeenCalledWith('getAppConfig')
+    expect(handle).toHaveBeenLastCalledWith('getAppConfig', second)
   })
 
   it('unregisters all tracked handlers', () => {
-    registerIpcHandler('one', vi.fn())
-    registerIpcHandler('two', vi.fn())
+    registerIpcHandler('getAppConfig', vi.fn())
+    registerIpcHandler('getInterfaces', vi.fn())
 
     unregisterIpcHandlers()
 
-    expect(removeHandler).toHaveBeenCalledWith('one')
-    expect(removeHandler).toHaveBeenCalledWith('two')
+    expect(removeHandler).toHaveBeenCalledWith('getAppConfig')
+    expect(removeHandler).toHaveBeenCalledWith('getInterfaces')
   })
 })

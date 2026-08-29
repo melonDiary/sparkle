@@ -2,6 +2,7 @@ import React, { createContext, useContext, ReactNode } from 'react'
 import useSWR from 'swr'
 import { getControledMihomoConfig, patchControledMihomoConfig as patch } from '@renderer/utils/ipc'
 import { notify } from '@renderer/utils/notification'
+import { IPC_EVENTS } from '../../../shared/ipc'
 
 interface ControledMihomoConfigContextType {
   controledMihomoConfig: Partial<MihomoConfig> | undefined
@@ -30,11 +31,11 @@ export const ControledMihomoConfigProvider: React.FC<{ children: ReactNode }> = 
   }
 
   React.useEffect(() => {
-    window.electron.ipcRenderer.on('controledMihomoConfigUpdated', () => {
+    window.electron.ipcRenderer.on(IPC_EVENTS.CONTROLLED_MIHOMO_CONFIG_UPDATED, () => {
       mutateControledMihomoConfig()
     })
     return (): void => {
-      window.electron.ipcRenderer.removeAllListeners('controledMihomoConfigUpdated')
+      window.electron.ipcRenderer.removeAllListeners(IPC_EVENTS.CONTROLLED_MIHOMO_CONFIG_UPDATED)
     }
   }, [])
 

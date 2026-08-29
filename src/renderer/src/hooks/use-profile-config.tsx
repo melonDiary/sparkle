@@ -1,6 +1,7 @@
 import React, { createContext, useContext, ReactNode, useEffect } from 'react'
 import useSWR from 'swr'
 import { notify } from '@renderer/utils/notification'
+import { IPC_EVENTS } from '../../../shared/ipc'
 import {
   getProfileConfig,
   setProfileConfig as set,
@@ -34,7 +35,7 @@ export const ProfileConfigProvider: React.FC<{ children: ReactNode }> = ({ child
       notify(e, { variant: 'danger' })
     } finally {
       mutateProfileConfig()
-      window.electron.ipcRenderer.send('updateTrayMenu')
+      window.electron.ipcRenderer.send(IPC_EVENTS.UPDATE_TRAY_MENU)
     }
   }
 
@@ -45,7 +46,7 @@ export const ProfileConfigProvider: React.FC<{ children: ReactNode }> = ({ child
       notify(e, { variant: 'danger' })
     } finally {
       mutateProfileConfig()
-      window.electron.ipcRenderer.send('updateTrayMenu')
+      window.electron.ipcRenderer.send(IPC_EVENTS.UPDATE_TRAY_MENU)
     }
   }
 
@@ -56,7 +57,7 @@ export const ProfileConfigProvider: React.FC<{ children: ReactNode }> = ({ child
       notify(e, { variant: 'danger' })
     } finally {
       mutateProfileConfig()
-      window.electron.ipcRenderer.send('updateTrayMenu')
+      window.electron.ipcRenderer.send(IPC_EVENTS.UPDATE_TRAY_MENU)
     }
   }
 
@@ -67,7 +68,7 @@ export const ProfileConfigProvider: React.FC<{ children: ReactNode }> = ({ child
       notify(e, { variant: 'danger' })
     } finally {
       mutateProfileConfig()
-      window.electron.ipcRenderer.send('updateTrayMenu')
+      window.electron.ipcRenderer.send(IPC_EVENTS.UPDATE_TRAY_MENU)
     }
   }
 
@@ -78,16 +79,16 @@ export const ProfileConfigProvider: React.FC<{ children: ReactNode }> = ({ child
       notify(e, { variant: 'danger' })
     } finally {
       mutateProfileConfig()
-      window.electron.ipcRenderer.send('updateTrayMenu')
+      window.electron.ipcRenderer.send(IPC_EVENTS.UPDATE_TRAY_MENU)
     }
   }
 
   useEffect(() => {
-    window.electron.ipcRenderer.on('profileConfigUpdated', () => {
+    window.electron.ipcRenderer.on(IPC_EVENTS.PROFILE_CONFIG_UPDATED, () => {
       mutateProfileConfig()
     })
     return (): void => {
-      window.electron.ipcRenderer.removeAllListeners('profileConfigUpdated')
+      window.electron.ipcRenderer.removeAllListeners(IPC_EVENTS.PROFILE_CONFIG_UPDATED)
     }
   }, [])
 

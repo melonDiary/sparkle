@@ -1,28 +1,31 @@
 import { TitleBarOverlayOptions } from 'electron'
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-function ipcErrorWrapper(response: any): any {
-  if (typeof response === 'object' && 'invokeError' in response) {
+function ipcErrorWrapper<T>(response: T): T {
+  if (typeof response === 'object' && response !== null && 'invokeError' in response) {
     throw response.invokeError
-  } else {
-    return response
   }
+  return response
 }
 
-export async function mihomoVersion(): Promise<ControllerVersion> {
-  return ipcErrorWrapper(await window.electron.ipcRenderer.invoke('mihomoVersion'))
+async function invoke<T>(channel: IpcChannel, ...args: unknown[]): Promise<T> {
+  return ipcErrorWrapper(await window.electron.ipcRenderer.invoke(channel, ...args)) as T
 }
 
-export async function mihomoConfig(): Promise<ControllerConfigs> {
-  return ipcErrorWrapper(await window.electron.ipcRenderer.invoke('mihomoConfig'))
+export function mihomoVersion(): Promise<ControllerVersion> {
+  return invoke<ControllerVersion>('mihomoVersion')
 }
 
-export async function mihomoCloseConnection(id: string): Promise<void> {
-  return ipcErrorWrapper(await window.electron.ipcRenderer.invoke('mihomoCloseConnection', id))
+export function mihomoConfig(): Promise<ControllerConfigs> {
+  return invoke<ControllerConfigs>('mihomoConfig')
 }
 
-export async function mihomoCloseConnections(name?: string): Promise<void> {
-  return ipcErrorWrapper(await window.electron.ipcRenderer.invoke('mihomoCloseConnections', name))
+export function mihomoCloseConnection(id: string): Promise<void> {
+  return invoke<void>('mihomoCloseConnection', id)
+}
+
+export function mihomoCloseConnections(name?: string): Promise<void> {
+  return invoke<void>('mihomoCloseConnections', name)
 }
 
 export async function mihomoRules(): Promise<ControllerRules> {
@@ -642,7 +645,7 @@ export async function copyEnv(
 
 async function alert<T>(msg: T): Promise<void> {
   const msgStr = typeof msg === 'string' ? msg : JSON.stringify(msg)
-  return await window.electron.ipcRenderer.invoke('alert', msgStr)
+  await window.electron.ipcRenderer.invoke('alert', msgStr)
 }
 
 window.alert = alert

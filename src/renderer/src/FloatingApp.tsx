@@ -4,6 +4,7 @@ import { calcTraffic } from './utils/calc'
 import { showContextMenu, triggerMainWindow } from './utils/ipc'
 import { useAppConfig } from './hooks/use-app-config'
 import { useControledMihomoConfig } from './hooks/use-controled-mihomo-config'
+import { IPC_EVENTS } from '../../shared/ipc'
 
 const FloatingApp: React.FC = () => {
   const { appConfig } = useAppConfig()
@@ -49,12 +50,15 @@ const FloatingApp: React.FC = () => {
   }, [spinSpeed, spinFloatingIcon])
 
   useEffect(() => {
-    window.electron.ipcRenderer.on('mihomoTraffic', async (_e, info: ControllerTraffic) => {
-      setUpload(info.up)
-      setDownload(info.down)
-    })
+    window.electron.ipcRenderer.on(
+      IPC_EVENTS.MIHOMO_TRAFFIC,
+      async (_e, info: ControllerTraffic) => {
+        setUpload(info.up)
+        setDownload(info.down)
+      }
+    )
     return (): void => {
-      window.electron.ipcRenderer.removeAllListeners('mihomoTraffic')
+      window.electron.ipcRenderer.removeAllListeners(IPC_EVENTS.MIHOMO_TRAFFIC)
     }
   }, [])
 

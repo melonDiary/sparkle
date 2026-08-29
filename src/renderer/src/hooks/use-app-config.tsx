@@ -2,6 +2,7 @@ import React, { createContext, useContext, ReactNode } from 'react'
 import useSWR from 'swr'
 import { getAppConfig, patchAppConfig as patch } from '@renderer/utils/ipc'
 import { notify } from '@renderer/utils/notification'
+import { IPC_EVENTS } from '../../../shared/ipc'
 
 interface AppConfigContextType {
   appConfig: AppConfig | undefined
@@ -28,11 +29,11 @@ export const AppConfigProvider: React.FC<{ children: ReactNode }> = ({ children 
   }
 
   React.useEffect(() => {
-    window.electron.ipcRenderer.on('appConfigUpdated', () => {
+    window.electron.ipcRenderer.on(IPC_EVENTS.APP_CONFIG_UPDATED, () => {
       mutateAppConfig()
     })
     return (): void => {
-      window.electron.ipcRenderer.removeAllListeners('appConfigUpdated')
+      window.electron.ipcRenderer.removeAllListeners(IPC_EVENTS.APP_CONFIG_UPDATED)
     }
   }, [])
 

@@ -1,6 +1,7 @@
 import { ipcMain } from 'electron'
 import { getAppConfig, patchAppConfig } from '../config'
 import { mainWindow } from '..'
+import { IPC_EVENTS } from '../../shared/ipc'
 import { floatingWindow } from '../resolve/floatingWindow'
 import {
   getAxios,
@@ -133,8 +134,8 @@ export function createServiceCoreRuntime(options: ServiceCoreRuntimeOptions) {
     await appendAppLog(`[Manager]: Service unavailable, fallback to elevated core, ${reason}\n`)
     stopEventHandlers()
     await patchAppConfig({ corePermissionMode: 'elevated' })
-    mainWindow?.webContents.send('appConfigUpdated')
-    floatingWindow?.webContents.send('appConfigUpdated')
+    mainWindow?.webContents.send(IPC_EVENTS.APP_CONFIG_UPDATED)
+    floatingWindow?.webContents.send(IPC_EVENTS.APP_CONFIG_UPDATED)
     void showNotification({ title: '服务不可用，已切换到非服务模式' })
     return options.startCore(detached)
   }
@@ -177,14 +178,14 @@ export function createServiceCoreRuntime(options: ServiceCoreRuntimeOptions) {
       ...(useServiceDNS ? { autoSetDNSMode: 'exec' as const } : {})
     })
 
-    mainWindow?.webContents.send('appConfigUpdated')
-    floatingWindow?.webContents.send('appConfigUpdated')
+    mainWindow?.webContents.send(IPC_EVENTS.APP_CONFIG_UPDATED)
+    floatingWindow?.webContents.send(IPC_EVENTS.APP_CONFIG_UPDATED)
 
     try {
       if (useServiceCore) {
         const promises = await options.startCore()
         await Promise.all(promises)
-        mainWindow?.webContents.send('core-started')
+        mainWindow?.webContents.send(IPC_EVENTS.CORE_STARTED)
       }
       void showNotification({ title: '服务不可用，已切换到非服务模式' })
     } finally {
@@ -233,16 +234,16 @@ export function createServiceCoreRuntime(options: ServiceCoreRuntimeOptions) {
       `[Manager]: Service core event: ${event.type}${event.pid ? `, pid: ${event.pid}` : ''}${event.error ? `, error: ${event.error}` : ''}\n`
     )
 
-    mainWindow?.webContents.send('core-status-changed', event)
+    mainWindow?.webContents.send(IPC_EVENTS.CORE_STATUS_CHANGED, event)
 
     switch (event.type) {
       case 'started':
         serviceCoreState.autoResumePaused = false
         serviceCoreState.managed = true
         await getAxios(true).catch(() => {})
-        mainWindow?.webContents.send('core-started', event)
-        mainWindow?.webContents.send('groupsUpdated')
-        mainWindow?.webContents.send('rulesUpdated')
+        mainWindow?.webContents.send(IPC_EVENTS.CORE_STARTED, event)
+        mainWindow?.webContents.send(IPC_EVENTS.GROUPS_UPDATED)
+        mainWindow?.webContents.send(IPC_EVENTS.RULES_UPDATED)
         ipcMain.emit('updateTrayMenu')
         void ensureStreamsStarted().catch((error) => {
           appendAppLog(`[Manager]: start service core streams failed, ${error}\n`).catch(() => {})
@@ -253,9 +254,9 @@ export function createServiceCoreRuntime(options: ServiceCoreRuntimeOptions) {
         serviceCoreState.autoResumePaused = false
         serviceCoreState.managed = true
         await getAxios(true).catch(() => {})
-        mainWindow?.webContents.send('core-started', event)
-        mainWindow?.webContents.send('groupsUpdated')
-        mainWindow?.webContents.send('rulesUpdated')
+        mainWindow?.webContents.send(IPC_EVENTS.CORE_STARTED, event)
+        mainWindow?.webContents.send(IPC_EVENTS.GROUPS_UPDATED)
+        mainWindow?.webContents.send(IPC_EVENTS.RULES_UPDATED)
         ipcMain.emit('updateTrayMenu')
         scheduleStreamsRestart()
         break
@@ -264,7 +265,7 @@ export function createServiceCoreRuntime(options: ServiceCoreRuntimeOptions) {
       case 'restart_failed':
         clearStreams()
         setMihomoLogSource('out')
-        mainWindow?.webContents.send('core-stopped', event)
+        mainWindow?.webContents.send(IPC_EVENTS.CORE_STOPPED, event)
         if (event.type === 'failed' || event.type === 'restart_failed') {
           serviceCoreState.managed = false
         }
@@ -276,7 +277,7 @@ export function createServiceCoreRuntime(options: ServiceCoreRuntimeOptions) {
         serviceCoreState.autoResumePaused = true
         serviceCoreState.managed = false
         serviceCoreState.streamsActive = false
-        mainWindow?.webContents.send('core-stopped', event)
+        mainWindow?.webContents.send(IPC_EVENTS.CORE_STOPPED, event)
         break
     }
   }
@@ -331,7 +332,7 @@ export function createServiceCoreRuntime(options: ServiceCoreRuntimeOptions) {
     await appendAppLog(`[Manager]: Service reconnected without running core, starting core\n`)
     const promises = await options.startCore()
     await Promise.all(promises)
-    mainWindow?.webContents.send('core-started')
+    mainWindow?.webContents.send(IPC_EVENTS.CORE_STARTED)
   }
 
   function isDuplicateServiceCoreEvent(event: ServiceCoreEvent): boolean {

@@ -1,7 +1,7 @@
-import { app } from 'electron'
+import { app, BrowserWindow } from 'electron'
 import { registerIpcHandler } from './ipc-registration'
 import { ipcErrorWrapper } from './ipc-error'
-import { mainWindow, setNotQuitDialog, showMainWindow, closeMainWindow, triggerMainWindow } from '..'
+import { setNotQuitDialog } from '../resolve/appLifecycle'
 import { showTrayIcon, closeTrayIcon, updateTrayIcon, setDockVisible, copyEnv } from '../resolve/tray'
 import { applyTheme, fetchThemes, importThemes, readTheme, resolveThemes, writeTheme } from '../resolve/theme'
 import { showFloatingWindow, closeFloatingWindow, showContextMenu } from '../resolve/floatingWindow'
@@ -21,9 +21,18 @@ import { quitWithoutCore } from '../core/manager'
 import path from 'path'
 import v8 from 'v8'
 
-export function registerWindowIpc(): void {
+export interface WindowIpcDeps {
+  getMainWindow: () => BrowserWindow | null
+  showMainWindow: () => Promise<void>
+  closeMainWindow: () => void
+  triggerMainWindow: () => Promise<void>
+}
+
+export function registerWindowIpc(deps: WindowIpcDeps): void {
+  const { getMainWindow, showMainWindow, closeMainWindow, triggerMainWindow } = deps
   const r = registerIpcHandler
   const w = ipcErrorWrapper
+  const mainWindow = getMainWindow
   r('openUWPTool', w(openUWPTool))
   r('setupFirewall', w(setupFirewall))
   r('getInterfaces', getInterfaces)
@@ -38,11 +47,12 @@ export function registerWindowIpc(): void {
   r('setNativeTheme', (_e, theme) => { setNativeTheme(theme) })
   r('setTitleBarOverlay', (_e, overlay) =>
     w(async (overlay): Promise<void> => {
-      if (typeof mainWindow?.setTitleBarOverlay === 'function') mainWindow.setTitleBarOverlay(overlay)
+      const win = mainWindow()
+      if (typeof win?.setTitleBarOverlay === 'function') win.setTitleBarOverlay(overlay)
     })(overlay)
   )
-  r('setAlwaysOnTop', (_e, alwaysOnTop) => { mainWindow?.setAlwaysOnTop(alwaysOnTop) })
-  r('isAlwaysOnTop', () => mainWindow?.isAlwaysOnTop())
+  r('setAlwaysOnTop', (_e, alwaysOnTop) => { mainWindow()?.setAlwaysOnTop(alwaysOnTop) })
+  r('isAlwaysOnTop', () => mainWindow()?.isAlwaysOnTop())
   r('showTrayIcon', () => w(showTrayIcon)())
   r('closeTrayIcon', () => w(closeTrayIcon)())
   r('updateTrayIcon', () => w(updateTrayIcon)())
@@ -54,7 +64,7 @@ export function registerWindowIpc(): void {
   r('closeFloatingWindow', () => w(closeFloatingWindow)())
   r('showContextMenu', () => w(showContextMenu)())
   r('openFile', (_e, type, id, ext) => openFile(type, id, ext))
-  r('openDevTools', () => { mainWindow?.webContents.openDevTools() })
+  r('openDevTools', () => { mainWindow()?.webContents.openDevTools() })
   r('createHeapSnapshot', () => v8.writeHeapSnapshot(path.join(logDir(), `${Date.now()}.heapsnapshot`)))
   r('getUserAgent', () => w(getUserAgent)())
   r('generateAgeKeyPair', () => w(generateAgeKeyPair)())

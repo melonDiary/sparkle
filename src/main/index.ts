@@ -188,7 +188,14 @@ app.whenReady().then(async () => {
     optimizer.watchWindowShortcuts(window)
   })
   const { showFloatingWindow: showFloating = false, disableTray = false } = appConfig
-  registerIpcMainHandlers()
+  registerIpcMainHandlers({
+    window: {
+      getMainWindow: () => mainWindow,
+      showMainWindow,
+      closeMainWindow,
+      triggerMainWindow
+    }
+  })
 
   const createWindowPromise = createWindow(appConfig)
 

@@ -1,5 +1,6 @@
 import { BrowserWindow, Notification, ipcMain, shell } from 'electron'
 import { getAppConfig } from '../config/app'
+import { IPC_EVENTS } from '../../shared/ipc'
 
 export type AppNotificationVariant = 'default' | 'accent' | 'success' | 'warning' | 'danger'
 type AppNotificationMode = 'system' | 'toast'
@@ -16,7 +17,7 @@ export interface AppNotificationPayload {
 const pendingToastNotifications: AppNotificationPayload[] = []
 const systemNotifications = new Map<string, Notification>()
 
-ipcMain.on('app-notification-ready', (event) => {
+ipcMain.on(IPC_EVENTS.APP_NOTIFICATION_READY, (event) => {
   const window = BrowserWindow.fromWebContents(event.sender)
   if (!window || !isMainRendererWindow(window)) {
     return
@@ -37,7 +38,7 @@ export async function showNotification(payload: AppNotificationPayload): Promise
   if (notificationMode === 'toast') {
     const window = getVisibleMainRendererWindow()
     if (window) {
-      window.webContents.send('app-notification', notification)
+      window.webContents.send(IPC_EVENTS.APP_NOTIFICATION, notification)
       return
     }
 
@@ -82,7 +83,7 @@ export function dismissNotification(id: string): void {
 
   for (const window of BrowserWindow.getAllWindows()) {
     if (!window.isDestroyed() && isMainRendererWindow(window)) {
-      window.webContents.send('app-notification-dismiss', id)
+      window.webContents.send(IPC_EVENTS.APP_NOTIFICATION_DISMISS, id)
     }
   }
 }
@@ -104,7 +105,7 @@ function flushPendingToastNotifications(window: BrowserWindow): void {
 
   const notifications = pendingToastNotifications.splice(0)
   for (const notification of notifications) {
-    window.webContents.send('app-notification', notification)
+    window.webContents.send(IPC_EVENTS.APP_NOTIFICATION, notification)
   }
 }
 
