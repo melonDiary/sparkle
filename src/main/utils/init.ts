@@ -30,7 +30,10 @@ import path from 'path'
 import {
   startPacServer,
   startSubStoreBackendServer,
-  startSubStoreFrontendServer
+  startSubStoreFrontendServer,
+  stopPacServer,
+  stopSubStoreBackendServer,
+  stopSubStoreFrontendServer
 } from '../resolve/server'
 import { triggerSysProxy } from '../sys/sysproxy'
 import {
@@ -40,7 +43,7 @@ import {
   patchControledMihomoConfig
 } from '../config'
 import { app } from 'electron'
-import { startSSIDCheck } from '../sys/ssid'
+import { startSSIDCheck, stopSSIDCheck } from '../sys/ssid'
 import { startNetworkDetection } from '../core/manager'
 import { initKeyManager } from '../service/manager'
 import { appendAppLog } from './log'
@@ -225,6 +228,17 @@ function startBackgroundInit(appConfig: AppConfig): void {
   if (networkDetection) {
     runBackgroundInitTask('network detection', startNetworkDetection())
   }
+
+  app.once('before-quit', () => {
+    stopSSIDCheck()
+    void Promise.all([
+      stopPacServer(),
+      stopSubStoreBackendServer(),
+      stopSubStoreFrontendServer()
+    ]).catch((error) => {
+      appendAppLog(`[App]: stop background services failed, ${error}\\n`).catch(() => {})
+    })
+  })
 
   runBackgroundInitTask(
     'sysproxy restore',
