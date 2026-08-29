@@ -9,7 +9,11 @@ vi.mock('electron', () => ({
   ipcMain: { handle, removeHandler }
 }))
 
-import { registerIpcHandler, unregisterIpcHandlers } from './ipc-registration'
+import {
+  assertIpcChannelsRegistered,
+  registerIpcHandler,
+  unregisterIpcHandlers
+} from './ipc-registration'
 
 describe('ipc registration', () => {
   beforeEach(() => {
@@ -44,5 +48,11 @@ describe('ipc registration', () => {
 
     expect(removeHandler).toHaveBeenCalledWith('getAppConfig')
     expect(removeHandler).toHaveBeenCalledWith('getInterfaces')
+  })
+
+  it('reports missing handlers before application startup', () => {
+    registerIpcHandler('getAppConfig', vi.fn())
+
+    expect(() => assertIpcChannelsRegistered()).toThrow('Missing IPC handlers')
   })
 })

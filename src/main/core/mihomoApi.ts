@@ -11,45 +11,9 @@ import { publishMihomoLog } from '../utils/log'
 import { createSignedServiceAxios, getServiceAuthHeaders } from '../service/api'
 import { createMihomoStream } from './mihomo-stream'
 import { IPC_EVENTS } from '../../shared/ipc'
+import { createLatestSender } from '../utils/latest-sender'
 
 let axiosIns: AxiosInstance = null!
-
-interface LatestSender<T> {
-  send(value: T): void
-  clear(): void
-}
-
-function createLatestSender<T>(intervalMs: number, sink: (value: T) => void): LatestSender<T> {
-  let pending: T | undefined
-  let timer: NodeJS.Timeout | null = null
-
-  const flush = (): void => {
-    timer = null
-    if (pending === undefined) return
-    const value = pending
-    pending = undefined
-    sink(value)
-    timer = setTimeout(flush, intervalMs)
-  }
-
-  return {
-    send(value: T): void {
-      if (!timer) {
-        sink(value)
-        timer = setTimeout(flush, intervalMs)
-        return
-      }
-      pending = value
-    },
-    clear(): void {
-      pending = undefined
-      if (timer) {
-        clearTimeout(timer)
-        timer = null
-      }
-    }
-  }
-}
 
 const mihomoTrafficSender = createLatestSender(100, (json: ControllerTraffic) => {
   mainWindow?.webContents.send(IPC_EVENTS.MIHOMO_TRAFFIC, json)

@@ -1,4 +1,5 @@
 import { ipcMain } from 'electron'
+import { IPC_CHANNELS } from '../../shared/ipc'
 
 type IpcHandler = Parameters<typeof ipcMain.handle>[1]
 
@@ -17,4 +18,12 @@ export function unregisterIpcHandlers(): void {
     ipcMain.removeHandler(channel)
   }
   registeredChannels.clear()
+}
+
+/** Fail fast if the runtime registry and shared channel contract drift apart. */
+export function assertIpcChannelsRegistered(): void {
+  const missing = IPC_CHANNELS.filter((channel) => !registeredChannels.has(channel))
+  if (missing.length > 0) {
+    throw new Error(`Missing IPC handlers: ${missing.join(', ')}`)
+  }
 }
