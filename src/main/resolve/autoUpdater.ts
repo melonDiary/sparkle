@@ -18,6 +18,7 @@ import {
   pauseServiceFallbackForAppUpdate
 } from '../service/fallback'
 import { appendAppLog } from '../utils/log'
+import { DOWNLOAD_TIMEOUT, HTTP_TIMEOUT } from '../utils/http'
 
 let downloadCancelToken: CancelTokenSource | null = null
 const WINDOWS_INSTALLER_MIN_TEMP_SPACE_BYTES = 1024 * 1024 * 1024
@@ -64,7 +65,7 @@ export async function checkUpdate(): Promise<AppVersion | undefined> {
       }
     }),
     responseType: 'text',
-    timeout: 30000
+    timeout: HTTP_TIMEOUT
   })
   const latest = parseYaml<AppVersion>(res.data)
   const currentVersion = app.getVersion()
@@ -148,7 +149,7 @@ export async function downloadAndInstallUpdate(version: string, tag?: string): P
       }
     }),
     cancelToken: downloadCancelToken.token,
-    timeout: 30000
+    timeout: HTTP_TIMEOUT
   }
 
   try {
@@ -184,7 +185,7 @@ export async function downloadAndInstallUpdate(version: string, tag?: string): P
           ...getGitHubAuthHeaders(githubToken)
         },
         cancelToken: downloadCancelToken.token,
-        timeout: 120000,
+        timeout: DOWNLOAD_TIMEOUT,
         onDownloadProgress: (progressEvent) => {
           const percentCompleted = Math.round(
             (progressEvent.loaded * 100) / (progressEvent.total || 1)

@@ -6,6 +6,7 @@ import AdmZip from 'adm-zip'
 import { getControledMihomoConfig } from '../config'
 import { existsSync } from 'fs'
 import { mainWindow } from '..'
+import { DOWNLOAD_TIMEOUT } from '../utils/http'
 import { floatingWindow } from './floatingWindow'
 
 let insertedCSSKeyMain: string | undefined = undefined
@@ -90,7 +91,7 @@ export async function fetchThemes(): Promise<void> {
   const zipData = await axios.get(zipUrl, {
     responseType: 'arraybuffer',
     headers: { 'Content-Type': 'application/octet-stream' },
-    timeout: 120000,
+    timeout: DOWNLOAD_TIMEOUT,
     ...(mixedPort != 0 && {
       proxy: {
         protocol: 'http',

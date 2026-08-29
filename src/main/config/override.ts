@@ -8,6 +8,7 @@ import http from 'http'
 import tls from 'tls'
 import { parseYaml, stringifyYaml } from '../utils/yaml'
 import { getCertFingerprint } from './profile'
+import { DOWNLOAD_TIMEOUT } from '../utils/http'
 
 let overrideConfig: OverrideConfig // override.yaml
 
@@ -133,7 +134,7 @@ export async function createOverride(item: Partial<OverrideItem>): Promise<Overr
               proxy: { protocol: 'http', host: '127.0.0.1', port: mixedPort }
             }),
           responseType: 'text',
-          timeout: 120000
+          timeout: DOWNLOAD_TIMEOUT
         })
       } catch (error) {
         if (axios.isAxiosError(error)) {

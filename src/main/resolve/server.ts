@@ -19,6 +19,8 @@ import axios from 'axios'
 import AdmZip from 'adm-zip'
 import { appendAppLog, createLogWritable } from '../utils/log'
 import { createHash } from 'crypto'
+import { DOWNLOAD_TIMEOUT, HTTP_TIMEOUT } from '../utils/http'
+import { waitForSubStoreReady } from '../core/subStoreClient'
 
 export let pacPort: number
 export let subStorePort: number
@@ -32,25 +34,6 @@ interface ReleaseAsset {
   digest?: string
 }
 
-async function waitForSubStoreReady(port: number, timeoutMs = 10000): Promise<void> {
-  const startedAt = Date.now()
-  let lastError: unknown
-
-  while (Date.now() - startedAt < timeoutMs) {
-    try {
-      await axios.get(`http://127.0.0.1:${port}/api/subs`, { timeout: 1000 })
-      return
-    } catch (error) {
-      lastError = error
-      await new Promise<void>((resolve) => {
-        setTimeout(resolve, 200)
-      })
-    }
-  }
-
-  throw new Error(`Sub-Store 服务启动超时：${lastError instanceof Error ? lastError.message : String(lastError)}`)
-}
-
 async function downloadReleaseAsset(repo: string, file: string, mixedPort: number) {
   const proxy =
     mixedPort != 0
@@ -60,7 +43,7 @@ async function downloadReleaseAsset(repo: string, file: string, mixedPort: numbe
     `https://api.github.com/repos/${repo}/releases/latest`,
     {
       headers: { Accept: 'application/vnd.github.v3+json' },
-      timeout: 30000,
+      timeout: HTTP_TIMEOUT,
       ...proxy
     }
   )
@@ -71,7 +54,7 @@ async function downloadReleaseAsset(repo: string, file: string, mixedPort: numbe
   const { data } = await axios.get(asset.browser_download_url, {
     responseType: 'arraybuffer',
     headers: { 'Content-Type': 'application/octet-stream' },
-    timeout: 120000,
+    timeout: DOWNLOAD_TIMEOUT,
     ...proxy
   })
   const buffer = Buffer.from(data)

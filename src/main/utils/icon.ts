@@ -3,6 +3,7 @@ import { app } from 'electron'
 import { fileToDataUrl } from '@uruhalushia/sparkle-native'
 import { getControledMihomoConfig } from '../config'
 import { darwinDefaultIcon, otherDevicesIcon, windowsDefaultIcon } from './defaultIcon'
+import { HTTP_TIMEOUT } from './http'
 
 function getDefaultIconDataURL(): string {
   if (process.platform === 'win32') {
@@ -33,7 +34,7 @@ export async function getImageDataURL(url: string): Promise<string> {
   const { 'mixed-port': port = 7890 } = await getControledMihomoConfig()
   const res = await axios.get(url, {
     responseType: 'arraybuffer',
-    timeout: 30000,
+    timeout: HTTP_TIMEOUT,
     ...(port != 0 && {
       proxy: {
         protocol: 'http',
