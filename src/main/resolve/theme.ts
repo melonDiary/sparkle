@@ -90,6 +90,7 @@ export async function fetchThemes(): Promise<void> {
   const zipData = await axios.get(zipUrl, {
     responseType: 'arraybuffer',
     headers: { 'Content-Type': 'application/octet-stream' },
+    timeout: 120000,
     ...(mixedPort != 0 && {
       proxy: {
         protocol: 'http',

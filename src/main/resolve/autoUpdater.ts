@@ -63,7 +63,8 @@ export async function checkUpdate(): Promise<AppVersion | undefined> {
         port: mixedPort
       }
     }),
-    responseType: 'text'
+    responseType: 'text',
+    timeout: 30000
   })
   const latest = parseYaml<AppVersion>(res.data)
   const currentVersion = app.getVersion()
@@ -146,7 +147,8 @@ export async function downloadAndInstallUpdate(version: string, tag?: string): P
         port: mixedPort
       }
     }),
-    cancelToken: downloadCancelToken.token
+    cancelToken: downloadCancelToken.token,
+    timeout: 30000
   }
 
   try {
@@ -182,6 +184,7 @@ export async function downloadAndInstallUpdate(version: string, tag?: string): P
           ...getGitHubAuthHeaders(githubToken)
         },
         cancelToken: downloadCancelToken.token,
+        timeout: 120000,
         onDownloadProgress: (progressEvent) => {
           const percentCompleted = Math.round(
             (progressEvent.loaded * 100) / (progressEvent.total || 1)

@@ -132,7 +132,8 @@ export async function createOverride(item: Partial<OverrideItem>): Promise<Overr
             !item.fingerprint && {
               proxy: { protocol: 'http', host: '127.0.0.1', port: mixedPort }
             }),
-          responseType: 'text'
+          responseType: 'text',
+          timeout: 120000
         })
       } catch (error) {
         if (axios.isAxiosError(error)) {

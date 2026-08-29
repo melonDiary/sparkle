@@ -52,7 +52,8 @@ async function listGists(token: string): Promise<GistInfo[]> {
         port
       }
     }),
-    responseType: 'json'
+    responseType: 'json',
+    timeout: 30000
   })
   return res.data as GistInfo[]
 }
@@ -78,7 +79,8 @@ async function createGist(token: string, fileName: string, content: string): Pro
           host: '127.0.0.1',
           port
         }
-      })
+      }),
+      timeout: 30000
     }
   )
 }
@@ -112,7 +114,8 @@ async function updateGist(
           host: '127.0.0.1',
           port
         }
-      })
+      }),
+      timeout: 30000
     }
   )
 }
