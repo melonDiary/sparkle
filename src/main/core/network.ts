@@ -77,7 +77,10 @@ export async function setPublicDNS(): Promise<void> {
     }
   } else {
     if (setPublicDNSTimer) clearTimeout(setPublicDNSTimer)
-    setPublicDNSTimer = setTimeout(() => setPublicDNS(), 5000)
+    setPublicDNSTimer = setTimeout(() => {
+      setPublicDNSTimer = null
+      void setPublicDNS()
+    }, 5000)
   }
 }
 
@@ -91,7 +94,10 @@ export async function recoverDNS(): Promise<void> {
     }
   } else {
     if (recoverDNSTimer) clearTimeout(recoverDNSTimer)
-    recoverDNSTimer = setTimeout(() => recoverDNS(), 5000)
+    recoverDNSTimer = setTimeout(() => {
+      recoverDNSTimer = null
+      void recoverDNS()
+    }, 5000)
   }
 }
 
@@ -142,6 +148,14 @@ export async function startNetworkDetectionController(
 
 export function stopNetworkDetection(): void {
   networkDetectionGeneration++
+  if (setPublicDNSTimer) {
+    clearTimeout(setPublicDNSTimer)
+    setPublicDNSTimer = null
+  }
+  if (recoverDNSTimer) {
+    clearTimeout(recoverDNSTimer)
+    recoverDNSTimer = null
+  }
   if (networkDetectionTimer) {
     clearInterval(networkDetectionTimer)
     networkDetectionTimer = null

@@ -17,7 +17,7 @@ import { nativeImage } from 'electron'
 import express from 'express'
 import axios from 'axios'
 import AdmZip from 'adm-zip'
-import { createLogWritable } from '../utils/log'
+import { appendAppLog, createLogWritable } from '../utils/log'
 import { createHash } from 'crypto'
 
 export let pacPort: number
@@ -30,6 +30,25 @@ interface ReleaseAsset {
   name: string
   browser_download_url: string
   digest?: string
+}
+
+async function waitForSubStoreReady(port: number, timeoutMs = 10000): Promise<void> {
+  const startedAt = Date.now()
+  let lastError: unknown
+
+  while (Date.now() - startedAt < timeoutMs) {
+    try {
+      await axios.get(`http://127.0.0.1:${port}/api/subs`, { timeout: 1000 })
+      return
+    } catch (error) {
+      lastError = error
+      await new Promise<void>((resolve) => {
+        setTimeout(resolve, 200)
+      })
+    }
+  }
+
+  throw new Error(`Sub-Store 服务启动超时：${lastError instanceof Error ? lastError.message : String(lastError)}`)
 }
 
 async function downloadReleaseAsset(repo: string, file: string, mixedPort: number) {
@@ -172,6 +191,7 @@ export async function startSubStoreBackendServer(): Promise<void> {
       SUB_STORE_MMDB_COUNTRY_PATH: path.join(mihomoWorkDir(), 'country.mmdb'),
       SUB_STORE_MMDB_ASN_PATH: path.join(mihomoWorkDir(), 'ASN.mmdb')
     }
+    subStorePort = await findAvailablePort(38324)
     subStoreBackendWorker = new Worker(subStoreBackendPath(), {
       env: useProxyInSubStore
         ? {
@@ -184,19 +204,24 @@ export async function startSubStoreBackendServer(): Promise<void> {
     })
     const worker = subStoreBackendWorker
     worker.on('error', (error) => {
-      void import('../utils/log').then(({ appendAppLog }) =>
-        appendAppLog(`[SubStore]: backend worker error, ${error}\n`).catch(() => {})
-      )
+      void appendAppLog(`[SubStore]: backend worker error, ${error}\n`).catch(() => {})
     })
     worker.on('exit', (code) => {
       if (subStoreBackendWorker === worker && code !== 0) {
-        void import('../utils/log').then(({ appendAppLog }) =>
-          appendAppLog(`[SubStore]: backend worker exited unexpectedly, code: ${code}\n`).catch(() => {})
-        )
+        void appendAppLog(
+          `[SubStore]: backend worker exited unexpectedly, code: ${code}\n`
+        ).catch(() => {})
       }
     })
     worker.stdout.pipe(stdout)
     worker.stderr.pipe(stderr)
+    try {
+      await waitForSubStoreReady(subStorePort)
+    } catch (error) {
+      await appendAppLog(`[SubStore]: backend worker was not ready, ${error}\n`).catch(() => {})
+      await stopSubStoreBackendServer()
+      throw error
+    }
   }
 }
 

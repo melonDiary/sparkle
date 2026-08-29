@@ -4,6 +4,7 @@ import { getAppConfig, patchControledMihomoConfig } from '../config'
 import { patchMihomoConfig } from '../core/mihomoApi'
 import { mainWindow } from '..'
 import { ipcMain, net } from 'electron'
+import { appendAppLog } from '../utils/log'
 import { getDefaultDevice } from '../core/network'
 
 export async function getCurrentSSID(): Promise<string | undefined> {
@@ -51,8 +52,8 @@ export async function checkSSID(): Promise<void> {
       mainWindow?.webContents.send('controledMihomoConfigUpdated')
       ipcMain.emit('updateTrayMenu')
     }
-  } catch {
-    // ignore
+  } catch (error) {
+    await appendAppLog(`[SSID]: check failed, ${error}\n`).catch(() => {})
   }
 }
 
