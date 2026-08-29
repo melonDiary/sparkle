@@ -2,13 +2,8 @@ import { overrideConfigPath, overridePath } from '../utils/dirs'
 import { getControledMihomoConfig } from './controledMihomo'
 import { readFile, writeFile, rm } from 'fs/promises'
 import { existsSync } from 'fs'
-import axios, { AxiosResponse } from 'axios'
-import https from 'https'
-import http from 'http'
-import tls from 'tls'
 import { parseYaml, stringifyYaml } from '../utils/yaml'
-import { getCertFingerprint } from './profile'
-import { DOWNLOAD_TIMEOUT } from '../utils/http'
+import { requestRemoteText } from '../utils/remote-request'
 
 let overrideConfig: OverrideConfig // override.yaml
 
@@ -75,11 +70,13 @@ export async function createOverride(item: Partial<OverrideItem>): Promise<Overr
     case 'remote': {
       const { 'mixed-port': mixedPort = 7890 } = await getControledMihomoConfig()
       if (!item.url) throw new Error('Empty URL')
-      let res: AxiosResponse
-      try {
-        const httpsAgent = new https.Agent({ rejectUnauthorized: !item.fingerprint })
-
-        if (item.fingerprint) {
+      const res = await requestRemoteText({
+        url: item.url,
+        fingerprint: item.fingerprint,
+        proxyPort: mixedPort
+      })
+      /*
+      if (item.fingerprint) {
           const expected = item.fingerprint.replace(/:/g, '').toUpperCase()
           const verify = (s: tls.TLSSocket) => {
             if (getCertFingerprint(s.getPeerCertificate()) !== expected)
@@ -127,7 +124,7 @@ export async function createOverride(item: Partial<OverrideItem>): Promise<Overr
           }
         }
 
-        res = await axios.get(item.url, {
+        /*
           httpsAgent,
           ...(mixedPort != 0 &&
             !item.fingerprint && {
@@ -136,23 +133,7 @@ export async function createOverride(item: Partial<OverrideItem>): Promise<Overr
           responseType: 'text',
           timeout: DOWNLOAD_TIMEOUT
         })
-      } catch (error) {
-        if (axios.isAxiosError(error)) {
-          if (error.code === 'ECONNRESET' || error.code === 'ECONNABORTED') {
-            throw new Error(`网络连接被重置或超时：${item.url}`)
-          } else if (error.code === 'CERT_HAS_EXPIRED') {
-            throw new Error(`服务器证书已过期：${item.url}`)
-          } else if (error.code === 'UNABLE_TO_VERIFY_LEAF_SIGNATURE') {
-            throw new Error(`无法验证服务器证书：${item.url}`)
-          } else if (error.message.includes('Certificate verification failed')) {
-            throw new Error(`证书验证失败：${item.url}`)
-          } else {
-            throw new Error(`请求失败：${error.message}`)
-          }
-        }
-        throw error
-      }
-
+      */
       const data = res.data
       await setOverride(id, newItem.ext, data)
       break

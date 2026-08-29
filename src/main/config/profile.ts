@@ -7,8 +7,6 @@ import { restartCore } from '../core/manager'
 import { getAppConfig } from './app'
 import { existsSync } from 'fs'
 import axios, { AxiosResponse } from 'axios'
-import https from 'https'
-import http from 'http'
 import tls from 'tls'
 import crypto from 'crypto'
 import { URL } from 'url'
@@ -21,6 +19,7 @@ import { getUserAgent } from '../utils/userAgent'
 import { execWithElevation } from '../utils/elevation'
 import { decryptAgeText, encryptAgeText, isAgeEncryptedText } from '../utils/age'
 import { isHttpUrl } from '../utils/url'
+import { requestRemoteText } from '../utils/remote-request'
 
 let profileConfig: ProfileConfig // profile.yaml
 const FILE_PERMISSION_ELEVATION_REQUIRED = 'FILE_PERMISSION_ELEVATION_REQUIRED'
@@ -191,8 +190,13 @@ export async function createProfile(item: Partial<ProfileItem>): Promise<Profile
         })
       } else {
         try {
-          const httpsAgent = new https.Agent({ rejectUnauthorized: !item.fingerprint })
-
+          res = await requestRemoteText({
+            url: item.url,
+            fingerprint: item.fingerprint,
+            proxyPort: newItem.useProxy ? mixedPort : undefined,
+            userAgent: newItem.ua || (await getUserAgent())
+          })
+/*
           if (item.fingerprint) {
             const expected = item.fingerprint.replace(/:/g, '').toUpperCase()
             const verify = (s: tls.TLSSocket) => {
@@ -251,6 +255,7 @@ export async function createProfile(item: Partial<ProfileItem>): Promise<Profile
             headers: { 'User-Agent': newItem.ua || (await getUserAgent()) },
             responseType: 'text'
           })
+        */
         } catch (error) {
           if (axios.isAxiosError(error)) {
             if (error.code === 'ECONNRESET' || error.code === 'ECONNABORTED') {
