@@ -33,6 +33,7 @@ export async function getImageDataURL(url: string): Promise<string> {
   const { 'mixed-port': port = 7890 } = await getControledMihomoConfig()
   const res = await axios.get(url, {
     responseType: 'arraybuffer',
+    timeout: 30000,
     ...(port != 0 && {
       proxy: {
         protocol: 'http',

@@ -101,7 +101,7 @@ async function showProfileInstallConfirm(
         extractedName = parseFilename(response.headers['content-disposition'])
       }
     } catch {
-      // ignore
+      // Filename discovery is optional; the actual import reports request errors.
     }
   }
 

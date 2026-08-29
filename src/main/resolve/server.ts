@@ -41,6 +41,7 @@ async function downloadReleaseAsset(repo: string, file: string, mixedPort: numbe
     `https://api.github.com/repos/${repo}/releases/latest`,
     {
       headers: { Accept: 'application/vnd.github.v3+json' },
+      timeout: 30000,
       ...proxy
     }
   )
@@ -51,6 +52,7 @@ async function downloadReleaseAsset(repo: string, file: string, mixedPort: numbe
   const { data } = await axios.get(asset.browser_download_url, {
     responseType: 'arraybuffer',
     headers: { 'Content-Type': 'application/octet-stream' },
+    timeout: 120000,
     ...proxy
   })
   const buffer = Buffer.from(data)
@@ -109,7 +111,10 @@ export async function startPacServer(): Promise<void> {
 
 export async function stopPacServer(): Promise<void> {
   if (pacServer) {
-    pacServer.close()
+    await new Promise<void>((resolve) => {
+      pacServer.close(() => resolve())
+    })
+    pacServer = undefined as unknown as http.Server
   }
 }
 
@@ -129,7 +134,10 @@ export async function startSubStoreFrontendServer(): Promise<void> {
 
 export async function stopSubStoreFrontendServer(): Promise<void> {
   if (subStoreFrontendServer) {
-    subStoreFrontendServer.close()
+    await new Promise<void>((resolve) => {
+      subStoreFrontendServer.close(() => resolve())
+    })
+    subStoreFrontendServer = undefined as unknown as http.Server
   }
 }
 
@@ -174,14 +182,29 @@ export async function startSubStoreBackendServer(): Promise<void> {
           }
         : env
     })
-    subStoreBackendWorker.stdout.pipe(stdout)
-    subStoreBackendWorker.stderr.pipe(stderr)
+    const worker = subStoreBackendWorker
+    worker.on('error', (error) => {
+      void import('../utils/log').then(({ appendAppLog }) =>
+        appendAppLog(`[SubStore]: backend worker error, ${error}\n`).catch(() => {})
+      )
+    })
+    worker.on('exit', (code) => {
+      if (subStoreBackendWorker === worker && code !== 0) {
+        void import('../utils/log').then(({ appendAppLog }) =>
+          appendAppLog(`[SubStore]: backend worker exited unexpectedly, code: ${code}\n`).catch(() => {})
+        )
+      }
+    })
+    worker.stdout.pipe(stdout)
+    worker.stderr.pipe(stderr)
   }
 }
 
 export async function stopSubStoreBackendServer(): Promise<void> {
-  if (subStoreBackendWorker) {
-    subStoreBackendWorker.terminate()
+  const worker = subStoreBackendWorker
+  subStoreBackendWorker = undefined as unknown as Worker
+  if (worker) {
+    await worker.terminate()
   }
 }
 
