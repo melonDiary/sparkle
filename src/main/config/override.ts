@@ -75,7 +75,7 @@ export async function createOverride(item: Partial<OverrideItem>): Promise<Overr
         fingerprint: item.fingerprint,
         proxyPort: mixedPort
       })
-      /*
+      /* legacy remote request implementation removed
       if (item.fingerprint) {
           const expected = item.fingerprint.replace(/:/g, '').toUpperCase()
           const verify = (s: tls.TLSSocket) => {
@@ -131,8 +131,7 @@ export async function createOverride(item: Partial<OverrideItem>): Promise<Overr
               proxy: { protocol: 'http', host: '127.0.0.1', port: mixedPort }
             }),
           responseType: 'text',
-          timeout: DOWNLOAD_TIMEOUT
-        })
+          timeout: DOWNLOAD_TIMEOUT        })
       */
       const data = res.data
       await setOverride(id, newItem.ext, data)

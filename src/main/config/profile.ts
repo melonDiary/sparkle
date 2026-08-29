@@ -189,13 +189,12 @@ export async function createProfile(item: Partial<ProfileItem>): Promise<Profile
           validateStatus: (status) => status >= 200 && status < 300
         })
       } else {
-        try {
-          res = await requestRemoteText({
-            url: item.url,
-            fingerprint: item.fingerprint,
-            proxyPort: newItem.useProxy ? mixedPort : undefined,
-            userAgent: newItem.ua || (await getUserAgent())
-          })
+        res = await requestRemoteText({
+          url: item.url,
+          fingerprint: item.fingerprint,
+          proxyPort: newItem.useProxy ? mixedPort : undefined,
+          userAgent: newItem.ua || (await getUserAgent())
+        })
 /*
           if (item.fingerprint) {
             const expected = item.fingerprint.replace(/:/g, '').toUpperCase()
@@ -256,22 +255,6 @@ export async function createProfile(item: Partial<ProfileItem>): Promise<Profile
             responseType: 'text'
           })
         */
-        } catch (error) {
-          if (axios.isAxiosError(error)) {
-            if (error.code === 'ECONNRESET' || error.code === 'ECONNABORTED') {
-              throw new Error(`网络连接被重置或超时：${item.url}`)
-            } else if (error.code === 'CERT_HAS_EXPIRED') {
-              throw new Error(`服务器证书已过期：${item.url}`)
-            } else if (error.code === 'UNABLE_TO_VERIFY_LEAF_SIGNATURE') {
-              throw new Error(`无法验证服务器证书：${item.url}`)
-            } else if (error.message.includes('Certificate verification failed')) {
-              throw new Error(`证书验证失败：${item.url}`)
-            } else {
-              throw new Error(`请求失败：${error.message}`)
-            }
-          }
-          throw error
-        }
       }
 
       const data = await decryptProfileContent(String(res.data), newItem)
