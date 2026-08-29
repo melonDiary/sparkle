@@ -98,9 +98,20 @@ export function isControllerListenError(logLine: string): boolean {
 }
 
 export function isControllerReadyLog(logLine: string): boolean {
+  // Mihomo has changed the wording of this message between releases. Keep the
+  // transport-specific checks, but accept the stable "API listening" markers.
+  if (process.platform !== 'win32') {
+    return (
+      logLine.includes('RESTful API unix listening at') ||
+      logLine.includes('RESTful API listening at') ||
+      logLine.includes('external controller unix') && logLine.includes('listening')
+    )
+  }
+
   return (
-    (process.platform !== 'win32' && logLine.includes('RESTful API unix listening at')) ||
-    (process.platform === 'win32' && logLine.includes('RESTful API pipe listening at'))
+    logLine.includes('RESTful API pipe listening at') ||
+    logLine.includes('RESTful API listening at') ||
+    logLine.includes('external controller pipe') && logLine.includes('listening')
   )
 }
 

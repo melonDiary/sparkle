@@ -1,6 +1,23 @@
 import { addProfileItem, getCurrentProfileItem, getProfileConfig } from '../config'
+import { appendAppLog } from '../utils/log'
 
 const intervalPool: Record<string, NodeJS.Timeout> = {}
+
+function getErrorMessage(error: unknown): string {
+  if (error instanceof Error) return error.stack || error.message
+  return String(error)
+}
+
+async function updateProfile(item: ProfileItem): Promise<void> {
+  try {
+    await addProfileItem(item)
+    await appendAppLog(`[profile-updater] 订阅更新成功：${item.name} (${item.id})\n`)
+  } catch (error) {
+    await appendAppLog(
+      `[profile-updater] 订阅更新失败：${item.name} (${item.id})\n${getErrorMessage(error)}\n`
+    ).catch(() => {})
+  }
+}
 
 function calculateUpdateDelay(item: ProfileItem): number {
   if (!item.interval) {
@@ -31,11 +48,7 @@ export async function initProfileUpdater(): Promise<void> {
       }
 
       if (delay === 0) {
-        try {
-          await addProfileItem(item)
-        } catch (e) {
-          // ignore
-        }
+        await updateProfile(item)
       }
 
       if (intervalPool[item.id]) {
@@ -72,11 +85,7 @@ export async function initProfileUpdater(): Promise<void> {
 
     intervalPool[currentItem.id] = setTimeout(
       async () => {
-        try {
-          await addProfileItem(currentItem)
-        } catch (e) {
-          // ignore
-        }
+        await updateProfile(currentItem)
       },
       (delay === 0 ? currentItem.interval * 60 * 1000 : delay) + 10000 // +10s
     )
@@ -105,11 +114,7 @@ export async function addProfileUpdater(item: ProfileItem): Promise<void> {
 
     intervalPool[item.id] = setTimeout(
       async () => {
-        try {
-          await addProfileItem(item)
-        } catch (e) {
-          // ignore
-        }
+        await updateProfile(item)
       },
       delay === 0 ? item.interval * 60 * 1000 : delay
     )

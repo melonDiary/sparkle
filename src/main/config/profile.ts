@@ -165,7 +165,15 @@ export async function createProfile(item: Partial<ProfileItem>): Promise<Profile
       if (!item.url) throw new Error('Empty URL')
       let res: AxiosResponse
       if (newItem.substore) {
-        const urlObj = new URL(`http://127.0.0.1:${subStorePort}${item.url}`)
+        if (!subStorePort) {
+          throw new Error('Sub-Store 服务尚未启动，请稍后重试')
+        }
+        const { useCustomSubStore = false, customSubStoreUrl = '' } = await getAppConfig()
+        const subStoreBaseUrl = useCustomSubStore
+          ? customSubStoreUrl
+          : `http://127.0.0.1:${subStorePort}`
+        const sourceUrl = item.url.startsWith('/') ? item.url : `/${item.url}`
+        const urlObj = new URL(sourceUrl, `${subStoreBaseUrl.replace(/\/$/, '')}/`)
         urlObj.searchParams.set('target', 'ClashMeta')
         urlObj.searchParams.set('noCache', 'true')
         if (newItem.useProxy && mixedPort != 0) {
@@ -175,9 +183,11 @@ export async function createProfile(item: Partial<ProfileItem>): Promise<Profile
         }
         res = await axios.get(urlObj.toString(), {
           headers: {
-            'User-Agent': await getUserAgent()
+            'User-Agent': newItem.ua || (await getUserAgent())
           },
-          responseType: 'text'
+          responseType: 'text',
+          timeout: 120000,
+          validateStatus: (status) => status >= 200 && status < 300
         })
       } else {
         try {

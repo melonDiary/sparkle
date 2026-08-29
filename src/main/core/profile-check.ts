@@ -11,6 +11,7 @@ export async function checkProfile(): Promise<void> {
   const corePath = mihomoCorePath(core)
   const execFilePromise = promisify(execFile)
   const env = {
+    ...process.env,
     SAFE_PATHS: safePaths.join(path.delimiter)
   }
   try {
@@ -27,12 +28,15 @@ export async function checkProfile(): Promise<void> {
     )
   } catch (error) {
     if (error instanceof Error && 'stdout' in error) {
-      const { stdout } = error as { stdout: string }
-      const errorLines = stdout
+      const { stdout = '', stderr = '' } = error as { stdout?: string; stderr?: string }
+      const output = `${stdout}\n${stderr}`
+      const errorLines = output
         .split('\n')
-        .filter((line) => line.includes('level=error'))
-        .map((line) => line.split('level=error')[1])
-      throw new Error(`Profile Check Failed:\n${errorLines.join('\n')}`)
+        .filter((line) => /level=error|error:/i.test(line))
+        .map((line) => line.replace(/^.*?(level=error|error:)\s*/i, '').trim())
+      throw new Error(
+        `Profile Check Failed:\n${errorLines.length > 0 ? errorLines.join('\n') : output.trim()}`
+      )
     } else {
       throw error
     }
