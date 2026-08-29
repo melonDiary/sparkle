@@ -1,5 +1,5 @@
 import { ChildProcess, spawn } from 'child_process'
-import { dataDir, coreLogPath, mihomoCorePath } from '../utils/dirs'
+import { dataDir, coreLogPath, mihomoCorePath, mihomoWorkConfigPath } from '../utils/dirs'
 import { generateProfile, getRuntimeConfig } from './factory'
 import {
   getAppConfig,
@@ -14,9 +14,9 @@ import {
   startMihomoConnections,
   startMihomoLogs,
   startMihomoMemory,
+  resetMihomoApi,
   patchMihomoConfig,
-  mihomoGroups,
-  getAxios
+  mihomoGroups
 } from './mihomoApi'
 import { readFile, rm, writeFile } from 'fs/promises'
 import { mainWindow } from '..'
@@ -68,6 +68,8 @@ const directCoreState = {
   retry: 10,
   logLineBuffer: ''
 }
+
+let coreStartPromise: Promise<Promise<void>[]> | undefined
 
 const serviceCoreRuntime = createServiceCoreRuntime({
   notifyCoreLog,
@@ -191,6 +193,11 @@ function findTailscaleAuthUrlEnd(url: string): number {
   return -1
 }
 
+async function mihomoCorePathForCurrentConfig(): Promise<string> {
+  const { core = 'mihomo' } = await getAppConfig()
+  return mihomoCorePath(core)
+}
+
 function delay(ms: number): Promise<void> {
   return new Promise((resolve) => {
     setTimeout(resolve, ms)
@@ -204,6 +211,7 @@ type ServiceCoreConnectionProbe = {
 }
 
 async function startMihomoApiStreams(): Promise<void> {
+  resetMihomoApi()
   await startMihomoTraffic()
   await startMihomoConnections()
   await startMihomoLogs()
@@ -320,6 +328,21 @@ async function getServiceStatusAfterConnectionError(): Promise<
 }
 
 export async function startCore(detached = false): Promise<Promise<void>[]> {
+  if (coreStartPromise) {
+    await appendAppLog('[Manager]: startCore already in progress, waiting for existing startup\n')
+    return await coreStartPromise
+  }
+
+  coreStartPromise = startCoreInternal(detached)
+  try {
+    return await coreStartPromise
+  } finally {
+    coreStartPromise = undefined
+  }
+}
+
+async function startCoreInternal(detached = false): Promise<Promise<void>[]> {
+  await appendAppLog(`[Manager]: startCore preflight, detached: ${detached}\n`)
   const [appConfig, controlledMihomoConfig, profileConfig] = await Promise.all([
     getAppConfig(),
     getControledMihomoConfig(),
@@ -355,8 +378,19 @@ export async function startCore(detached = false): Promise<Promise<void>[]> {
     throw error
   }
 
-  await generateProfile()
-  await checkProfile()
+  await appendAppLog(
+    `[Manager]: startCore begin, appVersion: ${app.getVersion()}, userData: ${app.getPath('userData')}, dataDir: ${dataDir()}, corePermissionMode: ${corePermissionMode}, coreStartupMode: ${coreStartupMode}\n`
+  )
+  try {
+    await appendAppLog('[Manager]: generating runtime profile\n')
+    await generateProfile()
+    await appendAppLog(`[Manager]: runtime profile generated, config: ${mihomoWorkConfigPath(diffWorkDir ? current : 'work')}\n`)
+    await checkProfile()
+    await appendAppLog('[Manager]: runtime profile check passed\n')
+  } catch (error) {
+    await appendAppLog(`[Manager]: core preflight failed: ${error instanceof Error ? error.stack || error.message : String(error)}\n`)
+    throw error
+  }
   let serviceCoreRunning = false
   if (useServiceCore) {
     try {
@@ -461,12 +495,21 @@ export async function startCore(detached = false): Promise<Promise<void>[]> {
   const stderr = createLogWritable('core', 'error')
   directCoreState.logLineBuffer = ''
 
+  await appendAppLog(
+    `[Manager]: Starting core: ${corePath}, args: ${JSON.stringify(spawnArgs)}, config: ${mihomoWorkConfigPath(diffWorkDir ? current : 'work')}\n`
+  )
   const child = spawn(corePath, spawnArgs, {
     detached: detached,
     stdio: detached ? 'ignore' : undefined,
     env: env
   })
   directCoreState.child = child
+  if (child.pid) {
+    await writeFile(
+      path.join(dataDir(), 'core.pid.json'),
+      JSON.stringify({ pid: child.pid, path: corePath, startedAt: new Date().toISOString() })
+    )
+  }
   hookWaiter?.attachProcess(child)
   if (child.pid) {
     try {
@@ -483,6 +526,11 @@ export async function startCore(detached = false): Promise<Promise<void>[]> {
   }
   child.on('close', async (code, signal) => {
     flushDirectCoreLogNotifications()
+    if (directCoreState.child === child) {
+      directCoreState.child = undefined
+    }
+    await rm(path.join(dataDir(), 'core.pid.json')).catch(() => {})
+    resetMihomoApi()
     await appendAppLog(`[Manager]: Core closed, code: ${code}, signal: ${signal}\n`)
     if (directCoreState.retry) {
       await appendAppLog(`[Manager]: Try Restart Core\n`)
@@ -570,25 +618,46 @@ export async function startCore(detached = false): Promise<Promise<void>[]> {
     })
   }
 
+  /*
   const waitForCoreReadyByHook = (): Promise<Promise<void>[]> => {
     if (!hookWaiter) return waitForCoreReadyByLog()
 
     return new Promise((resolve, reject) => {
-      child.stdout?.on('data', (data) => {
-        handleCoreOutput(data.toString(), reject).catch(reject)
-      })
-
-      hookWaiter.promise
-        .then(async () => {
+      let resolved = false
+      const resolveReady = async (): Promise<void> => {
+        if (resolved) return
+        resolved = true
+        try {
           initialized = true
           await startMihomoApiStreams()
           resolve([completeCoreInitialization(logLevel)])
-        })
-        .catch(reject)
+        } catch (error) {
+          reject(error)
+        }
+      }
+
+      child.stdout?.on('data', (data) => {
+        const text = data.toString()
+        handleCoreOutput(text, reject).catch(reject)
+        if (isControllerReadyLog(text)) {
+          void resolveReady()
+        }
+      })
+
+      hookWaiter.promise.then(resolveReady).catch((error) => {
+        if (resolved) return
+        void appendAppLog(`[Manager]: post-up hook failed, falling back to controller-ready log: ${error}\\n`)
+        // The core is usable once its controller announces readiness. The log
+        // listener above remains responsible for resolving this promise.
+      })
     })
   }
+  */
 
-  return coreStartupMode === 'post-up' ? waitForCoreReadyByHook() : waitForCoreReadyByLog()
+  // Prefer the controller-ready signal for startup completion. The hook is
+  // supplementary and must not prevent the core from becoming usable when a
+  // shell command or filesystem watcher is unavailable.
+  return waitForCoreReadyByLog()
 }
 
 export async function stopCore(force = false): Promise<void> {
@@ -623,28 +692,42 @@ export async function stopCore(force = false): Promise<void> {
     await stopChildProcess(child)
   }
 
-  await getAxios(true).catch(() => {})
+  resetMihomoApi()
 
-  if (existsSync(path.join(dataDir(), 'core.pid'))) {
-    const pidString = await readFile(path.join(dataDir(), 'core.pid'), 'utf-8')
-    const pid = parseInt(pidString.trim())
-    if (!isNaN(pid)) {
-      try {
-        process.kill(pid, 0)
-        process.kill(pid, 'SIGINT')
-        await delay(1000)
+  const pidInfoPath = path.join(dataDir(), 'core.pid.json')
+  if (existsSync(pidInfoPath)) {
+    try {
+      const pidInfo = JSON.parse(await readFile(pidInfoPath, 'utf-8')) as {
+        pid?: number
+        path?: string
+      }
+      const pid = pidInfo.pid
+      const expectedPath = await mihomoCorePathForCurrentConfig()
+      if (pid && pidInfo.path === expectedPath) {
         try {
           process.kill(pid, 0)
-          process.kill(pid, 'SIGKILL')
+          process.kill(pid, 'SIGINT')
+          await delay(1000)
+          try {
+            process.kill(pid, 0)
+            process.kill(pid, 'SIGKILL')
+          } catch {
+            // ignore
+          }
         } catch {
           // ignore
         }
-      } catch {
-        // ignore
+      } else if (pid) {
+        await appendAppLog(`[Manager]: Skip stopping unowned core PID ${pid}\n`)
       }
+    } catch (error) {
+      await appendAppLog(`[Manager]: Read core ownership record failed, ${error}\n`)
     }
-    await rm(path.join(dataDir(), 'core.pid')).catch(() => {})
+    await rm(pidInfoPath).catch(() => {})
   }
+
+  // Remove the legacy PID file without using it to kill an unknown process.
+  await rm(path.join(dataDir(), 'core.pid')).catch(() => {})
 }
 
 function notifyCoreLog(source: CoreLogNotificationSource): void {

@@ -20,9 +20,9 @@ const MihomoCoreCard: React.FC<Props> = (props) => {
   const { appConfig } = useAppConfig()
   const { iconOnly } = props
   const { mihomoCoreCardStatus = 'col-span-2', disableAnimation = false } = appConfig || {}
-  const { data: version, mutate } = useSWR('mihomoVersion', mihomoVersion, {
-    errorRetryInterval: 200,
-    errorRetryCount: 10
+  const { data: version, error: versionError, mutate } = useSWR('mihomoVersion', mihomoVersion, {
+    errorRetryInterval: 1000,
+    errorRetryCount: 5
   })
   const location = useLocation()
   const navigate = useNavigate()
@@ -109,7 +109,7 @@ const MihomoCoreCard: React.FC<Props> = (props) => {
               <h3
                 className={`text-md font-bold leading-8 ${match ? 'text-primary-foreground' : 'text-foreground'} `}
               >
-                {version?.version ?? '-'}
+                {version?.version ?? (restarting ? '重启中' : versionError ? '未连接' : '连接中')}
               </h3>
 
               <Button
@@ -144,7 +144,7 @@ const MihomoCoreCard: React.FC<Props> = (props) => {
               className={`flex justify-between w-full text-md font-bold ${match ? 'text-primary-foreground' : 'text-foreground'}`}
             >
               <h4>内核设置</h4>
-              <h4>{calcTraffic(mem)}</h4>
+              <h4>{versionError ? '内核未连接' : calcTraffic(mem)}</h4>
             </div>
           </CardFooter>
         </Card>

@@ -3,6 +3,11 @@ import { HTTP_TIMEOUT, DOWNLOAD_TIMEOUT, normalizeBaseUrl, localhostProxy } from
 import { describeHttpError } from '../../src/main/utils/http'
 
 describe('http helpers', () => {
+  it('exposes timeout constants', () => {
+    expect(HTTP_TIMEOUT).toBe(30000)
+    expect(DOWNLOAD_TIMEOUT).toBe(120000)
+  })
+
   it('normalizes trailing slashes', () => {
     expect(normalizeBaseUrl('http://127.0.0.1:1234')).toBe('http://127.0.0.1:1234')
     expect(normalizeBaseUrl('http://127.0.0.1:1234/')).toBe('http://127.0.0.1:1234')
@@ -27,12 +32,14 @@ describe('describeHttpError', () => {
   })
 
   it('describes axios errors with status codes', () => {
-    expect(
-      describeHttpError({
-        name: 'AxiosError',
-        message: 'Request failed with status code 502',
-        response: { status: 502 }
-      } as unknown as Error)
-    ).toContain('HTTP 502')
+    const error = new Error('Request failed with status code 502') as Error & {
+      isAxiosError: boolean
+      response: { status: number }
+      code?: string
+    }
+    error.name = 'AxiosError'
+    error.isAxiosError = true
+    error.response = { status: 502 }
+    expect(describeHttpError(error)).toContain('HTTP 502')
   })
 })

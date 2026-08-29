@@ -128,13 +128,47 @@ const Profiles: React.FC = () => {
     return items
   }, [subs, collections])
   const handleImport = async (importUrl: string): Promise<void> => {
-    if (importing) return
+    if (importing || !importUrl.trim()) return
     setImporting(true)
     try {
-      await addProfileItem({ name: '', type: 'remote', url: importUrl, useProxy, autoUpdate: true })
+      await addProfileItem({ name: '', type: 'remote', url: importUrl.trim(), useProxy, autoUpdate: true })
       setUrl('')
+      notify('订阅导入成功', { variant: 'success' })
     } finally {
       setImporting(false)
+    }
+  }
+
+  const handleRefresh = async (): Promise<void> => {
+    if (updating) return
+    setUpdating(true)
+    let successCount = 0
+    let failureCount = 0
+
+    try {
+      const remoteItems = itemsArray.filter((item) => item.type === 'remote')
+      for (const item of remoteItems) {
+        try {
+          await addProfileItem(item)
+          successCount++
+        } catch (error) {
+          failureCount++
+          notify(`${item.name || '订阅'} 更新失败：${error}`, { variant: 'danger' })
+        }
+      }
+
+      await mutateProfileConfig()
+      await Promise.all([mutateSubs(), mutateCollections()])
+
+      if (failureCount === 0) {
+        notify(`订阅刷新完成，共更新 ${successCount} 个订阅`, { variant: 'success' })
+      } else {
+        notify(`订阅刷新完成：成功 ${successCount} 个，失败 ${failureCount} 个`, {
+          variant: 'warning'
+        })
+      }
+    } finally {
+      setUpdating(false)
     }
   }
   const pageRef = useRef<HTMLDivElement>(null)
@@ -253,19 +287,7 @@ const Profiles: React.FC = () => {
             className="app-nodrag"
             variant="light"
             isIconOnly
-            onPress={async () => {
-              setUpdating(true)
-              for (const item of itemsArray) {
-                if (item.id === current) continue
-                if (item.type !== 'remote') continue
-                await addProfileItem(item)
-              }
-              const currentItem = itemsArray.find((item) => item.id === current)
-              if (currentItem && currentItem.type === 'remote') {
-                await addProfileItem(currentItem)
-              }
-              setUpdating(false)
-            }}
+            onPress={handleRefresh}
           >
             <IoMdRefresh className={`text-lg ${updating ? 'animate-spin' : ''}`} />
           </Button>

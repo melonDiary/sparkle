@@ -13,7 +13,7 @@ export function normalizeBaseUrl(url: string): string {
 }
 
 export function describeHttpError(error: unknown): string {
-  if (!axios.isAxiosError(error)) return error instanceof Error ? error.message : String(error)
+  if (!axios.isAxiosError(error)) return error instanceof Error ? error.message : error == null ? '' : String(error)
   const axiosError = error as AxiosError
   const code = axiosError.code ? ` (${axiosError.code})` : ''
   const status = axiosError.response?.status ? ` HTTP ${axiosError.response.status}` : ''

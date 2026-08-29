@@ -155,7 +155,14 @@ export async function startSubStoreBackendServer(): Promise<void> {
   } = await getAppConfig()
   const { 'mixed-port': port = 7890 } = await getControledMihomoConfig()
   if (!useSubStore) return
-  if (!useCustomSubStore) {
+  if (useCustomSubStore) {
+    // The remote/custom backend is not owned by Sparkle. Only terminate a
+    // worker reference that Sparkle itself created before switching modes.
+    await stopSubStoreBackendServer()
+    subStorePort = undefined as unknown as number
+    return
+  }
+  {
     await stopSubStoreBackendServer()
     subStorePort = await findAvailablePort(38324)
     const icon = nativeImage.createFromPath(subStoreIcon)

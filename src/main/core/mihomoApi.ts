@@ -26,6 +26,16 @@ let connectionsReconnectTimer: NodeJS.Timeout | null = null
 let axiosMode: 'direct' | 'service' | null = null
 const wsReconnectDelay = 1000
 
+/** Clear the cached controller client after the core stops or changes. */
+export function resetMihomoApi(): void {
+  axiosIns = null!
+  axiosMode = null
+  stopMihomoTraffic()
+  stopMihomoMemory()
+  stopMihomoLogs()
+  stopMihomoConnections()
+}
+
 function isWebSocketActive(ws: WebSocket | null): boolean {
   return ws?.readyState === WebSocket.OPEN || ws?.readyState === WebSocket.CONNECTING
 }
@@ -75,6 +85,16 @@ export const getAxios = async (force: boolean = false): Promise<AxiosInstance> =
   return axiosIns
 }
 
+function formatMihomoApiError(error: unknown): string {
+  if (error instanceof Error) return error.message
+  if (typeof error === 'string') return error
+  try {
+    return JSON.stringify(error)
+  } catch {
+    return String(error)
+  }
+}
+
 const mihomoWs = async (path: string): Promise<WebSocket> => {
   const { corePermissionMode = 'elevated' } = await getAppConfig()
   if (corePermissionMode !== 'service') {
@@ -89,7 +109,14 @@ const mihomoWs = async (path: string): Promise<WebSocket> => {
 
 export async function mihomoVersion(): Promise<ControllerVersion> {
   const instance = await getAxios()
-  return await instance.get('/version')
+  const { corePermissionMode = 'elevated' } = await getAppConfig()
+  const controller =
+    corePermissionMode === 'service' ? 'service controller' : `命名管道 ${mihomoIpcPath()}`
+  try {
+    return await instance.get('/version')
+  } catch (error) {
+    throw new Error(`内核控制器连接失败（${controller}）：${formatMihomoApiError(error)}`)
+  }
 }
 
 export const mihomoConfig = async (): Promise<ControllerConfigs> => {

@@ -9,6 +9,7 @@ import {
   getAppConfig
 } from '../config'
 import {
+  controledMihomoConfigPath,
   mihomoProfileWorkDir,
   mihomoWorkConfigPath,
   mihomoWorkDir,
@@ -35,6 +36,12 @@ export async function generateProfile(): Promise<void> {
   ])
   const { current } = profileConfig
   const { diffWorkDir = false, controlDns = true, controlSniff = true } = appConfig
+  const uiControl = {
+    mode: controledMihomoConfig.mode,
+    tunEnable: controledMihomoConfig.tun?.enable,
+    dnsEnable: controledMihomoConfig.dns?.enable,
+    snifferEnable: controledMihomoConfig.sniffer?.enable
+  }
   const nextRawProfileStr = await getProfileStr(current)
   let currentProfileConfig = parseYaml<MihomoConfig>(nextRawProfileStr)
   if (typeof currentProfileConfig !== 'object') currentProfileConfig = {} as MihomoConfig
@@ -53,8 +60,16 @@ export async function generateProfile(): Promise<void> {
   }
 
   const profile = deepMerge(JSON.parse(JSON.stringify(currentProfile)), configToMerge)
+  restoreUiControlledFields(profile, uiControl)
 
   await cleanProfile(profile, controlDns, controlSniff)
+
+  syncControledMihomoConfig(controledMihomoConfig, profile, controlDns, controlSniff)
+  await writeFile(controledMihomoConfigPath(), stringifyYaml(controledMihomoConfig), 'utf-8')
+  // Force re-read so the in-memory cache reflects the synced override values.
+  // Without this, the UI (which reads from the cached controledMihomoConfig)
+  // would still show stale defaults instead of the override's detailed settings.
+  await getControledMihomoConfig(true)
 
   runtimeConfig = profile
   runtimeConfigStr = stringifyYaml(profile)
@@ -65,6 +80,123 @@ export async function generateProfile(): Promise<void> {
     diffWorkDir ? mihomoWorkConfigPath(current) : mihomoWorkConfigPath('work'),
     runtimeConfigStr
   )
+}
+
+function restoreUiControlledFields(
+  profile: MihomoConfig,
+  uiControl: {
+    mode?: MihomoConfig['mode']
+    tunEnable?: boolean
+    dnsEnable?: boolean
+    snifferEnable?: boolean
+  }
+): void {
+  if (uiControl.mode !== undefined) {
+    profile.mode = uiControl.mode
+  }
+  if (uiControl.tunEnable !== undefined) {
+    profile.tun = { ...profile.tun, enable: uiControl.tunEnable }
+  }
+  if (uiControl.dnsEnable !== undefined) {
+    profile.dns = { ...profile.dns, enable: uiControl.dnsEnable }
+  }
+  if (uiControl.snifferEnable !== undefined) {
+    profile.sniffer = { ...profile.sniffer, enable: uiControl.snifferEnable }
+  }
+}
+
+/**
+ * Sync the final generated config back to controledMihomoConfig so that the
+ * UI (which reads from controledMihomoConfig / mihomo.yaml) reflects the
+ * override's detailed settings. Without this, override values for DNS, sniffer,
+ * tun and mode are applied to config.yaml but the UI still shows stale defaults.
+ */
+function syncControledMihomoConfig(
+  controled: Partial<MihomoConfig>,
+  profile: MihomoConfig,
+  controlDns: boolean,
+  controlSniff: boolean
+): void {
+  // Keep Sparkle-owned runtime/control fields untouched. Override files may
+  // contain these keys, but syncing them back would break the controller URL
+  // and make the UI unable to query the running core.
+
+  if (profile.tun) {
+    controled.tun = mergeDetailedConfig(
+      controled.tun as Record<string, unknown>,
+      profile.tun as Record<string, unknown>
+    ) as Partial<MihomoTunConfig>
+  } else if (!controled.tun?.enable) {
+    controled.tun = { ...controled.tun, enable: false }
+  }
+
+  if (controlDns) {
+    if (profile.dns) {
+      controled.dns = mergeDetailedConfig(
+        controled.dns as Record<string, unknown>,
+        profile.dns as Record<string, unknown>
+      ) as Partial<MihomoDNSConfig>
+    } else if (!controled.dns?.enable) {
+      controled.dns = { ...controled.dns, enable: false } as Partial<MihomoDNSConfig>
+    }
+  }
+
+  if (controlSniff) {
+    if (profile.sniffer) {
+      controled.sniffer = mergeDetailedConfig(
+        controled.sniffer as Record<string, unknown>,
+        profile.sniffer as Record<string, unknown>
+      ) as Partial<MihomoSnifferConfig>
+    } else if (!controled.sniffer?.enable) {
+      controled.sniffer = { ...controled.sniffer, enable: false } as Partial<MihomoSnifferConfig>
+    }
+  }
+}
+
+/**
+ * Merge detailed config fields from the final profile into controled config.
+ * Array fields are deduplicated (override values first, then existing UI values).
+ * Object fields are deep-merged. Scalar values use the profile (final) value.
+ * This ensures override settings appear in the UI while preserving user edits.
+ */
+function mergeDetailedConfig(
+  controled: Record<string, unknown> | undefined,
+  profile: Record<string, unknown>
+): Record<string, unknown> {
+  const result: Record<string, unknown> = { ...(controled || {}) }
+
+  for (const key of Object.keys(profile)) {
+    const profileVal = profile[key]
+    const controledVal = result[key]
+
+    if (Array.isArray(profileVal)) {
+      // Array: merge profile values first, then controled values, deduplicate
+      const existing = Array.isArray(controledVal) ? controledVal : []
+      const merged = [...profileVal]
+      for (const item of existing) {
+        if (!merged.includes(item)) merged.push(item)
+      }
+      result[key] = merged
+    } else if (
+      profileVal !== null &&
+      typeof profileVal === 'object' &&
+      !Array.isArray(profileVal) &&
+      controledVal !== null &&
+      typeof controledVal === 'object' &&
+      !Array.isArray(controledVal)
+    ) {
+      // Object: deep merge
+      result[key] = mergeDetailedConfig(
+        controledVal as Record<string, unknown>,
+        profileVal as Record<string, unknown>
+      )
+    } else {
+      // Scalar or new field: use profile value
+      result[key] = profileVal
+    }
+  }
+
+  return result
 }
 
 async function cleanProfile(
@@ -319,7 +451,7 @@ async function overrideProfile(
   const { items = [] } = (await getOverrideConfig()) || {}
   const globalOverride = items.filter((item) => item.global).map((item) => item.id)
   const { override = [] } = (await getProfileItem(current)) || {}
-  for (const ov of new Set(globalOverride.concat(override))) {
+  for (const ov of new Set(override.concat(globalOverride))) {
     const item = await getOverrideItem(ov)
     const content = await getOverride(ov, item?.ext || 'js')
     switch (item?.ext) {

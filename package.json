@@ -14,6 +14,8 @@
     "typecheck:node": "tsc --noEmit -p tsconfig.node.json --composite false",
     "typecheck:web": "tsc --noEmit -p tsconfig.web.json --composite false",
     "typecheck": "pnpm run typecheck:node && pnpm run typecheck:web",
+    "test": "vitest run",
+    "test:watch": "vitest",
     "prepare": "node scripts/prepare.ts",
     "updater": "node scripts/updater.ts",
     "checksum": "node scripts/checksum.ts",
@@ -98,7 +100,8 @@
     "tsx": "^4.23.12",
     "types-pac": "^1.0.3",
     "typescript": "^6.0.3",
-    "vite": "^8.2.2"
+    "vite": "^8.2.2",
+    "vitest": "^3.2.4"
   },
   "packageManager": "pnpm@11.1.1"
 }
