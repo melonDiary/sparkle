@@ -1,6 +1,7 @@
 import { Toast } from '@heroui-v3/react'
 import { useEffect } from 'react'
 import { dismissToastNotification, showToastNotification } from '@renderer/utils/notification'
+import { IPC_EVENTS } from '../../../../shared/ipc'
 
 const maxVisibleAppNotifications = 10
 
@@ -16,12 +17,12 @@ const AppNotificationProvider: React.FC = () => {
       dismissToastNotification(id)
     }
 
-    window.electron.ipcRenderer.on('app-notification', handleNotification)
-    window.electron.ipcRenderer.on('app-notification-dismiss', handleNotificationDismiss)
-    window.electron.ipcRenderer.send('app-notification-ready')
+    window.electron.ipcRenderer.on(IPC_EVENTS.APP_NOTIFICATION, handleNotification)
+    window.electron.ipcRenderer.on(IPC_EVENTS.APP_NOTIFICATION_DISMISS, handleNotificationDismiss)
+    window.electron.ipcRenderer.send(IPC_EVENTS.APP_NOTIFICATION_READY)
     return (): void => {
-      window.electron.ipcRenderer.removeAllListeners('app-notification')
-      window.electron.ipcRenderer.removeAllListeners('app-notification-dismiss')
+      window.electron.ipcRenderer.removeAllListeners(IPC_EVENTS.APP_NOTIFICATION)
+      window.electron.ipcRenderer.removeAllListeners(IPC_EVENTS.APP_NOTIFICATION_DISMISS)
     }
   }, [])
 

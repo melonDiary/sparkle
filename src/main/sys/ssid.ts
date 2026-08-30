@@ -6,6 +6,7 @@ import { mainWindow } from '..'
 import { ipcMain, net } from 'electron'
 import { appendAppLog } from '../utils/log'
 import { getDefaultDevice } from '../core/network'
+import { IPC_EVENTS } from '../../shared/ipc'
 
 export async function getCurrentSSID(): Promise<string | undefined> {
   if (process.platform === 'win32') {
@@ -44,13 +45,13 @@ export async function checkSSID(): Promise<void> {
     if (currentSSID && pauseSSID.includes(currentSSID)) {
       await patchControledMihomoConfig({ mode: 'direct' })
       await patchMihomoConfig({ mode: 'direct' })
-      mainWindow?.webContents.send('controledMihomoConfigUpdated')
-      ipcMain.emit('updateTrayMenu')
+      mainWindow?.webContents.send(IPC_EVENTS.CONTROLLED_MIHOMO_CONFIG_UPDATED)
+      ipcMain.emit(IPC_EVENTS.UPDATE_TRAY_MENU)
     } else {
       await patchControledMihomoConfig({ mode: 'rule' })
       await patchMihomoConfig({ mode: 'rule' })
-      mainWindow?.webContents.send('controledMihomoConfigUpdated')
-      ipcMain.emit('updateTrayMenu')
+      mainWindow?.webContents.send(IPC_EVENTS.CONTROLLED_MIHOMO_CONFIG_UPDATED)
+      ipcMain.emit(IPC_EVENTS.UPDATE_TRAY_MENU)
     }
   } catch (error) {
     await appendAppLog(`[SSID]: check failed, ${error}\n`).catch(() => {})

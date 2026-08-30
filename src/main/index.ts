@@ -2,20 +2,17 @@ import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import { registerIpcMainHandlers } from './utils/ipc'
 import { app, shell, BrowserWindow, Menu, type IpcMainEvent } from 'electron'
 import { getAppConfig } from './config'
-import { quitWithoutCore, startCore, stopCore } from './core/manager'
+import { quitWithoutCore, stopCore } from './core/manager'
 import { stopNetworkDetection } from './core/network'
 import { disableSysProxySync, triggerSysProxy } from './sys/sysproxy'
 import icon from '../../resources/icon.png?asset'
-import { createTray } from './resolve/tray'
 import { createApplicationMenu } from './resolve/menu'
 import { init } from './utils/init'
 import { join } from 'path'
-import { initShortcut } from './resolve/shortcut'
-import { initProfileUpdater } from './core/profileUpdater'
-import { startMonitor } from './resolve/trafficMonitor'
-import { showFloatingWindow } from './resolve/floatingWindow'
+import { runStartupTasks } from './bootstrap/startup-tasks'
 import { getAppConfigSync } from './config/app'
 import { createMainWindowStateManager } from './resolve/windowState'
+import { createWindowController } from './resolve/window-controller'
 import { isHttpUrl } from './utils/url'
 import {
   applyWindowsGpuWorkaround,
@@ -23,9 +20,12 @@ import {
   useLinuxCustomRelaunch
 } from './sys/startup'
 import { handleDeepLink } from './resolve/deepLink'
+import { acquireSingleInstance } from './bootstrap/single-instance'
+import { initDeepLinkWiring } from './bootstrap/deep-link-wiring'
 import { initAppQuitLifecycle } from './resolve/appLifecycle'
 import { showNotification } from './utils/notification'
 import { appendAppLog } from './utils/log'
+import { IPC_EVENTS } from '../shared/ipc'
 
 export { setNotQuitDialog } from './resolve/appLifecycle'
 
@@ -35,6 +35,14 @@ let isCreatingWindow = false
 let windowShown = false
 let createWindowPromiseResolve: (() => void) | null = null
 let createWindowPromise: Promise<void> | null = null
+
+const windowController = createWindowController({
+  create: async () => {
+    await createWindow()
+    if (!mainWindow) throw new Error('主窗口创建失败')
+    return mainWindow
+  }
+})
 let initialWindowDisplayPromiseResolve: (() => void) | null = null
 const initialWindowDisplayPromise = new Promise<void>((resolve) => {
   initialWindowDisplayPromiseResolve = resolve
@@ -112,14 +120,17 @@ function runStartupTask(name: string, task: Promise<unknown>): void {
 
 ensureWindowsElevatedStartup(syncConfig.corePermissionMode, exitApp)
 
-const gotTheLock = app.requestSingleInstanceLock()
-
-if (!gotTheLock) {
-  app.quit()
-}
+const gotTheLock = acquireSingleInstance({
+  showMainWindow,
+  handleDeepLink: (url) => handleDeepLink(url, { getMainWindow: () => mainWindow, createWindow, showWindow })
+})
 
 useLinuxCustomRelaunch()
 applyWindowsGpuWorkaround()
+
+if (!gotTheLock) {
+  // The process is already quitting after a failed single-instance lock.
+}
 
 const initPromise = init()
 
@@ -127,18 +138,10 @@ if (syncConfig.disableGPU) {
   app.disableHardwareAcceleration()
 }
 
-app.on('second-instance', async (_event, commandline) => {
-  showMainWindow()
-  const url = commandline.pop()
-  if (url) {
-    await handleDeepLink(url, { getMainWindow: () => mainWindow, createWindow, showWindow })
-  }
-})
+const handleIncomingDeepLink = (url: string): Promise<void> =>
+  handleDeepLink(url, { getMainWindow: () => mainWindow, createWindow, showWindow })
 
-app.on('open-url', async (_event, url) => {
-  showMainWindow()
-  await handleDeepLink(url, { getMainWindow: () => mainWindow, createWindow, showWindow })
-})
+initDeepLinkWiring({ showMainWindow, handleDeepLink: handleIncomingDeepLink })
 
 function showWindow(): number {
   if (mainWindow) {
@@ -198,42 +201,13 @@ app.whenReady().then(async () => {
   })
 
   const createWindowPromise = createWindow(appConfig)
-
-  let coreStarted = false
-
-  const coreStartPromise = (async (): Promise<void> => {
-    try {
-      if (is.dev) {
-        await initialWindowDisplayPromise
-      }
-      const [startPromise] = await startCore()
-      startPromise.then(async () => {
-        await initProfileUpdater()
-      })
-      coreStarted = true
-    } catch (e) {
-      void showNotification({ title: '内核启动出错', body: `${e}`, variant: 'danger' })
-    }
-  })()
-
-  runStartupTask('traffic monitor', startMonitor())
-
-  await createWindowPromise
-
-  const uiTasks: Promise<void>[] = [initShortcut()]
-
-  if (showFloating) {
-    uiTasks.push(Promise.resolve(showFloatingWindow()))
-  }
-  if (!disableTray) {
-    uiTasks.push(createTray())
-  }
-
-  runStartupTask('ui extras', Promise.all(uiTasks))
-  coreStartPromise.then(() => {
-    if (coreStarted) {
-      mainWindow?.webContents.send('core-started')
-    }
+  await runStartupTasks({
+    initialWindowDisplayPromise,
+    createWindowPromise,
+    showFloating,
+    disableTray,
+    runStartupTask,
+    onCoreStarted: () => mainWindow?.webContents.send(IPC_EVENTS.CORE_STARTED)
   })
 
   app.on('activate', function () {
@@ -352,11 +326,7 @@ export async function createWindow(appConfig?: AppConfig): Promise<void> {
 }
 
 export async function triggerMainWindow(): Promise<void> {
-  if (mainWindow && mainWindow.isVisible()) {
-    closeMainWindow()
-  } else {
-    await showMainWindow()
-  }
+  await windowController.triggerWindow()
 }
 
 export async function showMainWindow(): Promise<void> {
@@ -369,22 +339,12 @@ export async function showMainWindow(): Promise<void> {
       app.dock.hide()
     }
   }
-  if (mainWindow) {
-    windowShown = true
-    mainWindow.show()
-    mainWindow.focusOnWebView()
-  } else {
-    await createWindow()
-    if (mainWindow !== null) {
-      windowShown = true
-      ;(mainWindow as BrowserWindow).show()
-      ;(mainWindow as BrowserWindow).focusOnWebView()
-    }
-  }
+  const window = await windowController.createWindow()
+  windowShown = true
+  window.show()
+  window.focusOnWebView()
 }
 
 export function closeMainWindow(): void {
-  if (mainWindow) {
-    mainWindow.close()
-  }
+  windowController.closeWindow()
 }

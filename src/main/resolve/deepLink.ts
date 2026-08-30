@@ -2,6 +2,7 @@ import { ipcMain, type BrowserWindow, type IpcMainEvent } from 'electron'
 import { addOverrideItem, addProfileItem } from '../config'
 import { getUserAgent } from '../utils/userAgent'
 import { showNotification } from '../utils/notification'
+import { IPC_EVENTS } from '../../shared/ipc'
 
 interface DeepLinkContext {
   getMainWindow: () => BrowserWindow | null
@@ -31,7 +32,7 @@ export async function handleDeepLink(url: string, context: DeepLinkContext): Pro
             name: profileName ?? undefined,
             url: profileUrl
           })
-          context.getMainWindow()?.webContents.send('profileConfigUpdated')
+          context.getMainWindow()?.webContents.send(IPC_EVENTS.PROFILE_CONFIG_UPDATED)
           void showNotification({ title: '订阅导入成功', variant: 'success' })
         }
       } catch (error) {
@@ -62,7 +63,7 @@ export async function handleDeepLink(url: string, context: DeepLinkContext): Pro
             url: urlParam,
             ext: overrideUrl.pathname.endsWith('.js') ? 'js' : 'yaml'
           })
-          context.getMainWindow()?.webContents.send('overrideConfigUpdated')
+          context.getMainWindow()?.webContents.send(IPC_EVENTS.OVERRIDE_CONFIG_UPDATED)
           void showNotification({ title: '覆写导入成功', variant: 'success' })
         }
       } catch (error) {
@@ -108,15 +109,15 @@ async function showProfileInstallConfirm(
   return new Promise((resolve) => {
     const delay = context.showWindow()
     setTimeout(() => {
-      context.getMainWindow()?.webContents.send('show-profile-install-confirm', {
+      context.getMainWindow()?.webContents.send(IPC_EVENTS.SHOW_PROFILE_INSTALL_CONFIRM, {
         url,
         name: extractedName || name
       })
       const handleConfirm = (_event: IpcMainEvent, confirmed: boolean): void => {
-        ipcMain.off('profile-install-confirm-result', handleConfirm)
+        ipcMain.off(IPC_EVENTS.PROFILE_INSTALL_CONFIRM_RESULT, handleConfirm)
         resolve(confirmed)
       }
-      ipcMain.once('profile-install-confirm-result', handleConfirm)
+      ipcMain.once(IPC_EVENTS.PROFILE_INSTALL_CONFIRM_RESULT, handleConfirm)
     }, delay)
   })
 }
@@ -146,15 +147,15 @@ async function showOverrideInstallConfirm(
 
     const delay = context.showWindow()
     setTimeout(() => {
-      context.getMainWindow()?.webContents.send('show-override-install-confirm', {
+      context.getMainWindow()?.webContents.send(IPC_EVENTS.SHOW_OVERRIDE_INSTALL_CONFIRM, {
         url,
         name: finalName
       })
       const handleConfirm = (_event: IpcMainEvent, confirmed: boolean): void => {
-        ipcMain.off('override-install-confirm-result', handleConfirm)
+        ipcMain.off(IPC_EVENTS.OVERRIDE_INSTALL_CONFIRM_RESULT, handleConfirm)
         resolve(confirmed)
       }
-      ipcMain.once('override-install-confirm-result', handleConfirm)
+      ipcMain.once(IPC_EVENTS.OVERRIDE_INSTALL_CONFIRM_RESULT, handleConfirm)
     }, delay)
   })
 }

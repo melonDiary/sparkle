@@ -8,6 +8,7 @@ import routes, { useDeferredRoutePreload } from '@renderer/routes'
 import { useAppConfig } from '@renderer/hooks/use-app-config'
 import { applyTheme, checkUpdate, setNativeTheme, setTitleBarOverlay } from '@renderer/utils/ipc'
 import { platform } from '@renderer/utils/init'
+import { IPC_EVENTS } from '../../shared/ipc'
 import { TitleBarOverlayOptions } from 'electron'
 import MihomoIcon from './components/base/mihomo-icon'
 import useSWR from 'swr'
@@ -179,33 +180,36 @@ const App: React.FC = () => {
       setShowOverrideInstallConfirm(true)
     }
 
-    window.electron.ipcRenderer.on('show-quit-confirm', handleShowQuitConfirm)
-    window.electron.ipcRenderer.on('show-profile-install-confirm', handleShowProfileInstallConfirm)
+    window.electron.ipcRenderer.on(IPC_EVENTS.SHOW_QUIT_CONFIRM, handleShowQuitConfirm)
     window.electron.ipcRenderer.on(
-      'show-override-install-confirm',
+      IPC_EVENTS.SHOW_PROFILE_INSTALL_CONFIRM,
+      handleShowProfileInstallConfirm
+    )
+    window.electron.ipcRenderer.on(
+      IPC_EVENTS.SHOW_OVERRIDE_INSTALL_CONFIRM,
       handleShowOverrideInstallConfirm
     )
 
     return (): void => {
-      window.electron.ipcRenderer.removeAllListeners('show-quit-confirm')
-      window.electron.ipcRenderer.removeAllListeners('show-profile-install-confirm')
-      window.electron.ipcRenderer.removeAllListeners('show-override-install-confirm')
+      window.electron.ipcRenderer.removeAllListeners(IPC_EVENTS.SHOW_QUIT_CONFIRM)
+      window.electron.ipcRenderer.removeAllListeners(IPC_EVENTS.SHOW_PROFILE_INSTALL_CONFIRM)
+      window.electron.ipcRenderer.removeAllListeners(IPC_EVENTS.SHOW_OVERRIDE_INSTALL_CONFIRM)
     }
   }, [])
 
   const handleQuitConfirm = (confirmed: boolean): void => {
     setShowQuitConfirm(false)
-    window.electron.ipcRenderer.send('quit-confirm-result', confirmed)
+    window.electron.ipcRenderer.send(IPC_EVENTS.QUIT_CONFIRM_RESULT, confirmed)
   }
 
   const handleProfileInstallConfirm = (confirmed: boolean): void => {
     setShowProfileInstallConfirm(false)
-    window.electron.ipcRenderer.send('profile-install-confirm-result', confirmed)
+    window.electron.ipcRenderer.send(IPC_EVENTS.PROFILE_INSTALL_CONFIRM_RESULT, confirmed)
   }
 
   const handleOverrideInstallConfirm = (confirmed: boolean): void => {
     setShowOverrideInstallConfirm(false)
-    window.electron.ipcRenderer.send('override-install-confirm-result', confirmed)
+    window.electron.ipcRenderer.send(IPC_EVENTS.OVERRIDE_INSTALL_CONFIRM_RESULT, confirmed)
   }
 
   return (

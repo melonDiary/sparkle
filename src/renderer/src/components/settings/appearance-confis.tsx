@@ -28,6 +28,7 @@ import { MdEditDocument } from 'react-icons/md'
 import CSSEditorModal from './css-editor-modal'
 import TrayIconCropModal from './tray-icon-crop-modal'
 import { notify } from '@renderer/utils/notification'
+import { IPC_EVENTS } from '../../../../shared/ipc'
 
 const rasterTrayIconPattern = /\.(png|jpe?g|webp)$/i
 
@@ -138,7 +139,7 @@ const AppearanceConfig: React.FC = () => {
                 isSelected={spinFloatingIcon}
                 onValueChange={async (v) => {
                   await patchAppConfig({ spinFloatingIcon: v })
-                  window.electron.ipcRenderer.send('updateFloatingWindow')
+                  window.electron.ipcRenderer.send(IPC_EVENTS.UPDATE_FLOATING_WINDOW)
                 }}
               />
             </SettingItem>
@@ -233,7 +234,7 @@ const AppearanceConfig: React.FC = () => {
                     await patchAppConfig({
                       trayProxyDelayLayout: v as 'same-line' | 'new-line'
                     })
-                    window.electron.ipcRenderer.send('updateTrayMenu')
+                    window.electron.ipcRenderer.send(IPC_EVENTS.UPDATE_TRAY_MENU)
                   }}
                 >
                   <Tab key="same-line" title="同一行" />

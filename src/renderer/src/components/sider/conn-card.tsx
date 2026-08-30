@@ -106,7 +106,7 @@ const ConnCard: React.FC<Props> = (props) => {
         currentUpload = undefined
         currentDownload = undefined
         currentTrayIcon = ''
-        window.electron.ipcRenderer.send('trayIconUpdate')
+        window.electron.ipcRenderer.send(IPC_EVENTS.TRAY_ICON_UPDATE)
         hasShowTraffic = false
       }
     }
@@ -273,7 +273,7 @@ const drawTrayTrafficIcon = async (
   ctx.fillText(downloadText, 116, 34)
   ctx.drawImage(trayIcon, 128, 0, 36, 36)
 
-  window.electron.ipcRenderer.send('trayIconUpdate', canvas.toDataURL('image/png'))
+  window.electron.ipcRenderer.send(IPC_EVENTS.TRAY_ICON_UPDATE, canvas.toDataURL('image/png'))
   currentUpload = upload
   currentDownload = download
   currentTrayIcon = trayIconKey

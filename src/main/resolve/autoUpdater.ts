@@ -19,6 +19,7 @@ import {
 } from '../service/fallback'
 import { appendAppLog } from '../utils/log'
 import { DOWNLOAD_TIMEOUT, HTTP_TIMEOUT } from '../utils/http'
+import { IPC_EVENTS } from '../../shared/ipc'
 
 let downloadCancelToken: CancelTokenSource | null = null
 const WINDOWS_INSTALLER_MIN_TEMP_SPACE_BYTES = 1024 * 1024 * 1024
@@ -153,7 +154,7 @@ export async function downloadAndInstallUpdate(version: string, tag?: string): P
   }
 
   try {
-    mainWindow?.webContents.send('update-status', {
+    mainWindow?.webContents.send(IPC_EVENTS.UPDATE_STATUS, {
       downloading: true,
       progress: 0
     })
@@ -190,7 +191,7 @@ export async function downloadAndInstallUpdate(version: string, tag?: string): P
           const percentCompleted = Math.round(
             (progressEvent.loaded * 100) / (progressEvent.total || 1)
           )
-          mainWindow?.webContents.send('update-status', {
+          mainWindow?.webContents.send(IPC_EVENTS.UPDATE_STATUS, {
             downloading: true,
             progress: percentCompleted
           })
@@ -208,7 +209,7 @@ export async function downloadAndInstallUpdate(version: string, tag?: string): P
       throw new Error(`SHA-256 校验失败：本地哈希 ${localHash} 与预期 ${expectedHash} 不符`)
     }
 
-    mainWindow?.webContents.send('update-status', {
+    mainWindow?.webContents.send(IPC_EVENTS.UPDATE_STATUS, {
       downloading: false,
       progress: 100
     })
@@ -268,14 +269,14 @@ export async function downloadAndInstallUpdate(version: string, tag?: string): P
     }
     await rm(path.join(dataDir(), file), { force: true })
     if (axios.isCancel(e)) {
-      mainWindow?.webContents.send('update-status', {
+      mainWindow?.webContents.send(IPC_EVENTS.UPDATE_STATUS, {
         downloading: false,
         progress: 0,
         error: '下载已取消'
       })
       return
     } else {
-      mainWindow?.webContents.send('update-status', {
+      mainWindow?.webContents.send(IPC_EVENTS.UPDATE_STATUS, {
         downloading: false,
         progress: 0,
         error: e instanceof Error ? e.message : '下载失败'

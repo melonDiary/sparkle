@@ -9,6 +9,7 @@ import React from 'react'
 import { useSortable } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 import { notify } from '@renderer/utils/notification'
+import { IPC_EVENTS } from '../../../../shared/ipc'
 
 interface Props {
   iconOnly?: boolean
@@ -47,8 +48,8 @@ const SysproxySwitcher: React.FC<Props> = (props) => {
     try {
       await triggerSysProxy(enable, onlyActiveDevice)
       await patchAppConfig({ sysProxy: { enable } })
-      window.electron.ipcRenderer.send('updateFloatingWindow')
-      window.electron.ipcRenderer.send('updateTrayMenu')
+      window.electron.ipcRenderer.send(IPC_EVENTS.UPDATE_FLOATING_WINDOW)
+      window.electron.ipcRenderer.send(IPC_EVENTS.UPDATE_TRAY_MENU)
     } catch (e) {
       notify(e, { variant: 'danger' })
     }

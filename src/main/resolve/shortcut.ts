@@ -11,6 +11,7 @@ import { patchMihomoConfig } from '../core/mihomoApi'
 import { quitWithoutCore, restartCore } from '../core/manager'
 import { floatingWindow, triggerFloatingWindow } from './floatingWindow'
 import { showNotification } from '../utils/notification'
+import { IPC_EVENTS } from '../../shared/ipc'
 
 export async function registerShortcut(
   oldShortcut: string,
@@ -46,12 +47,12 @@ export async function registerShortcut(
           void showNotification({
             title: `系统代理已${!enable ? '开启' : '关闭'}`
           })
-          mainWindow?.webContents.send('appConfigUpdated')
-          floatingWindow?.webContents.send('appConfigUpdated')
+          mainWindow?.webContents.send(IPC_EVENTS.APP_CONFIG_UPDATED)
+          floatingWindow?.webContents.send(IPC_EVENTS.APP_CONFIG_UPDATED)
         } catch {
           // ignore
         } finally {
-          ipcMain.emit('updateTrayMenu')
+          ipcMain.emit(IPC_EVENTS.UPDATE_TRAY_MENU)
         }
       })
     }
@@ -69,12 +70,12 @@ export async function registerShortcut(
           void showNotification({
             title: `虚拟网卡已${!enable ? '开启' : '关闭'}`
           })
-          mainWindow?.webContents.send('controledMihomoConfigUpdated')
-          floatingWindow?.webContents.send('appConfigUpdated')
+          mainWindow?.webContents.send(IPC_EVENTS.CONTROLLED_MIHOMO_CONFIG_UPDATED)
+          floatingWindow?.webContents.send(IPC_EVENTS.APP_CONFIG_UPDATED)
         } catch {
           // ignore
         } finally {
-          ipcMain.emit('updateTrayMenu')
+          ipcMain.emit(IPC_EVENTS.UPDATE_TRAY_MENU)
         }
       })
     }
@@ -85,8 +86,8 @@ export async function registerShortcut(
         void showNotification({
           title: '已切换至规则模式'
         })
-        mainWindow?.webContents.send('controledMihomoConfigUpdated')
-        ipcMain.emit('updateTrayMenu')
+        mainWindow?.webContents.send(IPC_EVENTS.CONTROLLED_MIHOMO_CONFIG_UPDATED)
+        ipcMain.emit(IPC_EVENTS.UPDATE_TRAY_MENU)
       })
     }
     case 'globalModeShortcut': {
@@ -96,8 +97,8 @@ export async function registerShortcut(
         void showNotification({
           title: '已切换至全局模式'
         })
-        mainWindow?.webContents.send('controledMihomoConfigUpdated')
-        ipcMain.emit('updateTrayMenu')
+        mainWindow?.webContents.send(IPC_EVENTS.CONTROLLED_MIHOMO_CONFIG_UPDATED)
+        ipcMain.emit(IPC_EVENTS.UPDATE_TRAY_MENU)
       })
     }
     case 'directModeShortcut': {
@@ -107,8 +108,8 @@ export async function registerShortcut(
         void showNotification({
           title: '已切换至直连模式'
         })
-        mainWindow?.webContents.send('controledMihomoConfigUpdated')
-        ipcMain.emit('updateTrayMenu')
+        mainWindow?.webContents.send(IPC_EVENTS.CONTROLLED_MIHOMO_CONFIG_UPDATED)
+        ipcMain.emit(IPC_EVENTS.UPDATE_TRAY_MENU)
       })
     }
     case 'quitWithoutCoreShortcut': {

@@ -1,6 +1,7 @@
 import React, { createContext, useContext, ReactNode } from 'react'
 import useSWR from 'swr'
 import { mihomoGroups } from '@renderer/utils/ipc'
+import { IPC_EVENTS } from '../../../shared/ipc'
 
 interface GroupsContextType {
   groups: ControllerMixedGroup[] | undefined
@@ -16,10 +17,10 @@ export const GroupsProvider: React.FC<{ children: ReactNode }> = ({ children }) 
   })
 
   React.useEffect(() => {
-    const unsubscribeGroupsUpdated = window.electron.ipcRenderer.on('groupsUpdated', () => {
+    const unsubscribeGroupsUpdated = window.electron.ipcRenderer.on(IPC_EVENTS.GROUPS_UPDATED, () => {
       mutate()
     })
-    const unsubscribeCoreStarted = window.electron.ipcRenderer.on('core-started', () => {
+    const unsubscribeCoreStarted = window.electron.ipcRenderer.on(IPC_EVENTS.CORE_STARTED, () => {
       mutate()
     })
     return (): void => {

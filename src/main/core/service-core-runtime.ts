@@ -244,7 +244,7 @@ export function createServiceCoreRuntime(options: ServiceCoreRuntimeOptions) {
         mainWindow?.webContents.send(IPC_EVENTS.CORE_STARTED, event)
         mainWindow?.webContents.send(IPC_EVENTS.GROUPS_UPDATED)
         mainWindow?.webContents.send(IPC_EVENTS.RULES_UPDATED)
-        ipcMain.emit('updateTrayMenu')
+        ipcMain.emit(IPC_EVENTS.UPDATE_TRAY_MENU)
         void ensureStreamsStarted().catch((error) => {
           appendAppLog(`[Manager]: start service core streams failed, ${error}\n`).catch(() => {})
         })
@@ -257,7 +257,7 @@ export function createServiceCoreRuntime(options: ServiceCoreRuntimeOptions) {
         mainWindow?.webContents.send(IPC_EVENTS.CORE_STARTED, event)
         mainWindow?.webContents.send(IPC_EVENTS.GROUPS_UPDATED)
         mainWindow?.webContents.send(IPC_EVENTS.RULES_UPDATED)
-        ipcMain.emit('updateTrayMenu')
+        ipcMain.emit(IPC_EVENTS.UPDATE_TRAY_MENU)
         scheduleStreamsRestart()
         break
       case 'exited':

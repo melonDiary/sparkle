@@ -8,6 +8,7 @@ import { useSortable } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 import React from 'react'
 import { useAppConfig } from '@renderer/hooks/use-app-config'
+import { IPC_EVENTS } from '../../../../shared/ipc'
 
 interface Props {
   iconOnly?: boolean
@@ -41,8 +42,8 @@ const TunSwitcher: React.FC<Props> = (props) => {
       await patchControledMihomoConfig({ tun: { enable } })
     }
     await restartCore()
-    window.electron.ipcRenderer.send('updateFloatingWindow')
-    window.electron.ipcRenderer.send('updateTrayMenu')
+    window.electron.ipcRenderer.send(IPC_EVENTS.UPDATE_FLOATING_WINDOW)
+    window.electron.ipcRenderer.send(IPC_EVENTS.UPDATE_TRAY_MENU)
   }
 
   if (iconOnly) {

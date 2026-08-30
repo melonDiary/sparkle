@@ -17,6 +17,7 @@ import { startTour } from '@renderer/utils/driver'
 import { useNavigate } from 'react-router-dom'
 import ConfirmModal from '../base/base-confirm'
 import { notify } from '@renderer/utils/notification'
+import { IPC_EVENTS } from '../../../../shared/ipc'
 
 async function handleCreateHeapSnapshot(): Promise<void> {
   try {
@@ -52,7 +53,7 @@ const Actions: React.FC = () => {
       setUpdateStatus(status)
     }
 
-    const unsubscribe = window.electron.ipcRenderer.on('update-status', handleUpdateStatus)
+    const unsubscribe = window.electron.ipcRenderer.on(IPC_EVENTS.UPDATE_STATUS, handleUpdateStatus)
 
     return (): void => {
       unsubscribe()

@@ -9,6 +9,7 @@ import {
   patchControledMihomoConfig
 } from '../config'
 import { app, ipcMain } from 'electron'
+import { IPC_EVENTS } from '../../shared/ipc'
 import {
   startMihomoTraffic,
   startMihomoConnections,
@@ -222,8 +223,8 @@ async function startMihomoApiStreams(): Promise<void> {
 async function completeCoreInitialization(logLevel?: LogLevel): Promise<void> {
   const tasks: Promise<unknown>[] = [
     delay(100).then(() => {
-      mainWindow?.webContents.send('groupsUpdated')
-      mainWindow?.webContents.send('rulesUpdated')
+      mainWindow?.webContents.send(IPC_EVENTS.GROUPS_UPDATED)
+      mainWindow?.webContents.send(IPC_EVENTS.RULES_UPDATED)
     }),
     (async () => {
       try {
@@ -585,8 +586,8 @@ async function startCoreInternal(detached = false): Promise<Promise<void>[]> {
 
                 if (isTunPermissionError(logLine)) {
                   patchControledMihomoConfig({ tun: { enable: false } })
-                  mainWindow?.webContents.send('controledMihomoConfigUpdated')
-                  ipcMain.emit('updateTrayMenu')
+                  mainWindow?.webContents.send(IPC_EVENTS.CONTROLLED_MIHOMO_CONFIG_UPDATED)
+                  ipcMain.emit(IPC_EVENTS.UPDATE_TRAY_MENU)
                   reject('虚拟网卡启动失败，前往内核设置页尝试手动授予内核权限')
                 }
 

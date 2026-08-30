@@ -4,6 +4,7 @@ import UpdaterDrawer from './updater-drawer'
 import { GrUpgrade } from 'react-icons/gr'
 import { cancelUpdate } from '@renderer/utils/ipc'
 import { notify } from '@renderer/utils/notification'
+import { IPC_EVENTS } from '../../../../shared/ipc'
 
 let notifiedUpdateVersion = ''
 let hiddenUpdateButtonVersion = ''
@@ -36,7 +37,7 @@ const UpdaterButton: React.FC<Props> = (props) => {
       setUpdateStatus(status)
     }
 
-    const unsubscribe = window.electron.ipcRenderer.on('update-status', handleUpdateStatus)
+    const unsubscribe = window.electron.ipcRenderer.on(IPC_EVENTS.UPDATE_STATUS, handleUpdateStatus)
 
     return (): void => {
       unsubscribe()

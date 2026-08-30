@@ -30,7 +30,7 @@ const TrayMenuApp: React.FC = () => {
   }, [])
 
   const handleClose = (): void => {
-    window.electron.ipcRenderer.send('customTray:close')
+    window.electron.ipcRenderer.send(IPC_EVENTS.CUSTOM_TRAY_CLOSE)
   }
 
   const handleRefresh = (): void => {

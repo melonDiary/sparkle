@@ -1,4 +1,5 @@
 import { clearCachedMihomoLogs, getCachedMihomoLogs } from './ipc'
+import { IPC_EVENTS } from '../../../shared/ipc'
 
 export type MihomoLogEntry = ControllerLog & { id: string; seq?: number }
 
@@ -109,7 +110,7 @@ function initLogStore(): void {
   if (initialized) return
 
   initialized = true
-  window.electron.ipcRenderer.on('mihomoLogs', (_event, log: MihomoIncomingLog) => {
+  window.electron.ipcRenderer.on(IPC_EVENTS.MIHOMO_LOGS, (_event, log: MihomoIncomingLog) => {
     pendingLogs.push(log)
     scheduleFlush()
   })

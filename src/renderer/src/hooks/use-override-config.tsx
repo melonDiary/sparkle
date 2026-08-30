@@ -8,6 +8,7 @@ import {
   removeOverrideItem as remove,
   updateOverrideItem as update
 } from '@renderer/utils/ipc'
+import { IPC_EVENTS } from '../../../shared/ipc'
 
 interface OverrideConfigContextType {
   overrideConfig: OverrideConfig | undefined
@@ -66,11 +67,11 @@ export const OverrideConfigProvider: React.FC<{ children: ReactNode }> = ({ chil
   }
 
   useEffect(() => {
-    window.electron.ipcRenderer.on('overrideConfigUpdated', () => {
+    window.electron.ipcRenderer.on(IPC_EVENTS.OVERRIDE_CONFIG_UPDATED, () => {
       mutateOverrideConfig()
     })
     return (): void => {
-      window.electron.ipcRenderer.removeAllListeners('overrideConfigUpdated')
+      window.electron.ipcRenderer.removeAllListeners(IPC_EVENTS.OVERRIDE_CONFIG_UPDATED)
     }
   }, [])
 

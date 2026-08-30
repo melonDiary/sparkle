@@ -6,6 +6,7 @@ import React, { KeyboardEvent, useState, useEffect } from 'react'
 import { platform } from '@renderer/utils/init'
 import { registerShortcut } from '@renderer/utils/ipc'
 import { notify } from '@renderer/utils/notification'
+import { IPC_EVENTS } from '../../../../shared/ipc'
 
 const keyMap = {
   Backquote: '`',
@@ -213,7 +214,7 @@ const ShortcutInput: React.FC<{
             try {
               if (await registerShortcut(value, inputValue, action)) {
                 await patchAppConfig({ [action]: inputValue })
-                window.electron.ipcRenderer.send('updateTrayMenu')
+                window.electron.ipcRenderer.send(IPC_EVENTS.UPDATE_TRAY_MENU)
               } else {
                 notify('快捷键注册失败', { variant: 'danger' })
               }

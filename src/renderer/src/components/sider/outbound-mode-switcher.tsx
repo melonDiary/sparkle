@@ -4,6 +4,7 @@ import { useControledMihomoConfig } from '@renderer/hooks/use-controled-mihomo-c
 import { useGroups } from '@renderer/hooks/use-groups'
 import { mihomoCloseConnections, patchMihomoConfig } from '@renderer/utils/ipc'
 import { Key } from 'react'
+import { IPC_EVENTS } from '../../../../shared/ipc'
 
 interface Props {
   iconOnly?: boolean
@@ -23,7 +24,7 @@ const OutboundModeSwitcher: React.FC<Props> = ({ iconOnly }: Props) => {
       await mihomoCloseConnections()
     }
     mutateGroups()
-    window.electron.ipcRenderer.send('updateTrayMenu')
+    window.electron.ipcRenderer.send(IPC_EVENTS.UPDATE_TRAY_MENU)
   }
   if (!mode) return null
   if (iconOnly) {

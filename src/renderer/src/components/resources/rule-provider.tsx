@@ -15,6 +15,7 @@ import { CgLoadbarDoc } from 'react-icons/cg'
 import { MdEditDocument } from 'react-icons/md'
 import dayjs from 'dayjs'
 import { notify } from '@renderer/utils/notification'
+import { IPC_EVENTS } from '../../../../shared/ipc'
 
 const RuleProvider: React.FC = () => {
   const [showDetails, setShowDetails] = useState({
@@ -60,7 +61,7 @@ const RuleProvider: React.FC = () => {
   })
 
   useEffect(() => {
-    const unsubscribeCoreStarted = window.electron.ipcRenderer.on('core-started', () => {
+    const unsubscribeCoreStarted = window.electron.ipcRenderer.on(IPC_EVENTS.CORE_STARTED, () => {
       mutate()
     })
     return (): void => {

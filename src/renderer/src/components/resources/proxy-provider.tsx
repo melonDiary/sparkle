@@ -18,6 +18,7 @@ import { calcTraffic } from '@renderer/utils/calc'
 import { getHash } from '@renderer/utils/hash'
 import { Meter } from '@heroui-v3/react'
 import { notify } from '@renderer/utils/notification'
+import { IPC_EVENTS } from '../../../../shared/ipc'
 
 const ProxyProvider: React.FC = () => {
   const [showDetails, setShowDetails] = useState({
@@ -57,7 +58,7 @@ const ProxyProvider: React.FC = () => {
   })
 
   useEffect(() => {
-    const unsubscribeCoreStarted = window.electron.ipcRenderer.on('core-started', () => {
+    const unsubscribeCoreStarted = window.electron.ipcRenderer.on(IPC_EVENTS.CORE_STARTED, () => {
       mutate()
     })
     return (): void => {

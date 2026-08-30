@@ -33,6 +33,7 @@ import { triggerSysProxy } from '../sys/sysproxy'
 import { quitWithoutCore, restartCore } from '../core/manager'
 import { floatingWindow, triggerFloatingWindow } from './floatingWindow'
 import { is } from '@electron-toolkit/utils'
+import { IPC_EVENTS } from '../../shared/ipc'
 import { extname, join } from 'path'
 import { applyTheme } from './theme'
 import { existsSync } from 'fs'
@@ -249,7 +250,7 @@ export const buildContextMenu = async (): Promise<Menu> => {
               click: async (): Promise<void> => {
                 try {
                   await mihomoGroupDelay(group.name, group.testUrl)
-                  ipcMain.emit('updateTrayMenu')
+                  ipcMain.emit(IPC_EVENTS.UPDATE_TRAY_MENU)
                 } catch (e) {
                   // ignore
                 }
@@ -314,7 +315,7 @@ export const buildContextMenu = async (): Promise<Menu> => {
     //   checked: useCustomTrayMenu,
     //   click: async (item): Promise<void> => {
     //     await patchAppConfig({ useCustomTrayMenu: item.checked })
-    //     ipcMain.emit('updateTrayMenu')
+    //     ipcMain.emit(IPC_EVENTS.UPDATE_TRAY_MENU)
     //   }
     // },
     { type: 'separator' },
@@ -328,12 +329,12 @@ export const buildContextMenu = async (): Promise<Menu> => {
         try {
           await triggerSysProxy(enable, onlyActiveDevice)
           await patchAppConfig({ sysProxy: { enable } })
-          mainWindow?.webContents.send('appConfigUpdated')
-          floatingWindow?.webContents.send('appConfigUpdated')
+          mainWindow?.webContents.send(IPC_EVENTS.APP_CONFIG_UPDATED)
+          floatingWindow?.webContents.send(IPC_EVENTS.APP_CONFIG_UPDATED)
         } catch (e) {
           // ignore
         } finally {
-          ipcMain.emit('updateTrayMenu')
+          ipcMain.emit(IPC_EVENTS.UPDATE_TRAY_MENU)
         }
       }
     },
@@ -350,13 +351,13 @@ export const buildContextMenu = async (): Promise<Menu> => {
           } else {
             await patchControledMihomoConfig({ tun: { enable } })
           }
-          mainWindow?.webContents.send('controledMihomoConfigUpdated')
-          floatingWindow?.webContents.send('controledMihomoConfigUpdated')
+          mainWindow?.webContents.send(IPC_EVENTS.CONTROLLED_MIHOMO_CONFIG_UPDATED)
+          floatingWindow?.webContents.send(IPC_EVENTS.CONTROLLED_MIHOMO_CONFIG_UPDATED)
           await restartCore()
         } catch {
           // ignore
         } finally {
-          ipcMain.emit('updateTrayMenu')
+          ipcMain.emit(IPC_EVENTS.UPDATE_TRAY_MENU)
         }
       }
     },
@@ -374,9 +375,9 @@ export const buildContextMenu = async (): Promise<Menu> => {
           click: async (): Promise<void> => {
             await patchControledMihomoConfig({ mode: 'rule' })
             await patchMihomoConfig({ mode: 'rule' })
-            mainWindow?.webContents.send('controledMihomoConfigUpdated')
-            mainWindow?.webContents.send('groupsUpdated')
-            ipcMain.emit('updateTrayMenu')
+            mainWindow?.webContents.send(IPC_EVENTS.CONTROLLED_MIHOMO_CONFIG_UPDATED)
+            mainWindow?.webContents.send(IPC_EVENTS.GROUPS_UPDATED)
+            ipcMain.emit(IPC_EVENTS.UPDATE_TRAY_MENU)
           }
         },
         {
@@ -388,9 +389,9 @@ export const buildContextMenu = async (): Promise<Menu> => {
           click: async (): Promise<void> => {
             await patchControledMihomoConfig({ mode: 'global' })
             await patchMihomoConfig({ mode: 'global' })
-            mainWindow?.webContents.send('controledMihomoConfigUpdated')
-            mainWindow?.webContents.send('groupsUpdated')
-            ipcMain.emit('updateTrayMenu')
+            mainWindow?.webContents.send(IPC_EVENTS.CONTROLLED_MIHOMO_CONFIG_UPDATED)
+            mainWindow?.webContents.send(IPC_EVENTS.GROUPS_UPDATED)
+            ipcMain.emit(IPC_EVENTS.UPDATE_TRAY_MENU)
           }
         },
         {
@@ -402,9 +403,9 @@ export const buildContextMenu = async (): Promise<Menu> => {
           click: async (): Promise<void> => {
             await patchControledMihomoConfig({ mode: 'direct' })
             await patchMihomoConfig({ mode: 'direct' })
-            mainWindow?.webContents.send('controledMihomoConfigUpdated')
-            mainWindow?.webContents.send('groupsUpdated')
-            ipcMain.emit('updateTrayMenu')
+            mainWindow?.webContents.send(IPC_EVENTS.CONTROLLED_MIHOMO_CONFIG_UPDATED)
+            mainWindow?.webContents.send(IPC_EVENTS.GROUPS_UPDATED)
+            ipcMain.emit(IPC_EVENTS.UPDATE_TRAY_MENU)
           }
         }
       ]
@@ -422,8 +423,8 @@ export const buildContextMenu = async (): Promise<Menu> => {
           click: async (): Promise<void> => {
             if (item.id === current) return
             await changeCurrentProfile(item.id)
-            mainWindow?.webContents.send('profileConfigUpdated')
-            ipcMain.emit('updateTrayMenu')
+            mainWindow?.webContents.send(IPC_EVENTS.PROFILE_CONFIG_UPDATED)
+            ipcMain.emit(IPC_EVENTS.UPDATE_TRAY_MENU)
           }
         }
       })
@@ -538,7 +539,7 @@ export async function createTray(): Promise<void> {
       app.dock.hide()
     }
     if (!trayIconUpdateListenerRegistered) {
-      ipcMain.on('trayIconUpdate', async (_, png?: string) => {
+      ipcMain.on(IPC_EVENTS.TRAY_ICON_UPDATE, async (_, png?: string) => {
         const { customTrayIcon = '' } = await getAppConfig()
         const customIcon = createCustomTrayImage(customTrayIcon)
         if (png) {
@@ -572,7 +573,7 @@ export async function createTray(): Promise<void> {
       await triggerMainWindow()
     })
     if (!updateTrayMenuListenerRegistered) {
-      ipcMain.on('updateTrayMenu', async () => {
+      ipcMain.on(IPC_EVENTS.UPDATE_TRAY_MENU, async () => {
         await updateTrayMenu()
       })
       updateTrayMenuListenerRegistered = true
@@ -610,7 +611,7 @@ async function updateTrayMenu(): Promise<void> {
   }
 }
 
-ipcMain.on('customTray:close', () => {
+ipcMain.on(IPC_EVENTS.CUSTOM_TRAY_CLOSE, () => {
   hideCustomTray()
 })
 

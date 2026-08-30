@@ -8,6 +8,7 @@ import { CSS } from '@dnd-kit/utilities'
 import { useLocation, useNavigate } from 'react-router-dom'
 import PubSub from 'pubsub-js'
 import useSWR from 'swr'
+import { IPC_EVENTS } from '../../../../shared/ipc'
 import { useAppConfig } from '@renderer/hooks/use-app-config'
 import { LuCpu } from 'react-icons/lu'
 import { notify } from '@renderer/utils/notification'
@@ -46,12 +47,12 @@ const MihomoCoreCard: React.FC<Props> = (props) => {
       mutate()
     })
     const unsubscribeMihomoMemory = window.electron.ipcRenderer.on(
-      'mihomoMemory',
+      IPC_EVENTS.MIHOMO_MEMORY,
       (_e, info: ControllerMemory) => {
         setMem(info.inuse)
       }
     )
-    const unsubscribeCoreStarted = window.electron.ipcRenderer.on('core-started', () => {
+    const unsubscribeCoreStarted = window.electron.ipcRenderer.on(IPC_EVENTS.CORE_STARTED, () => {
       mutate()
     })
     return (): void => {

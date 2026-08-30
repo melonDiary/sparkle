@@ -5,6 +5,7 @@ import { getAppConfig, patchAppConfig } from '../config'
 import { applyTheme } from './theme'
 import { buildContextMenu, showTrayIcon } from './tray'
 import { createWindowStateManager } from './windowState'
+import { IPC_EVENTS } from '../../shared/ipc'
 
 export let floatingWindow: BrowserWindow | null = null
 let triggerTimeoutRef: NodeJS.Timeout | null = null
@@ -70,10 +71,10 @@ async function createFloatingWindow(): Promise<void> {
     floatingWindow?.show()
     floatingWindow?.setAlwaysOnTop(true, 'screen-saver')
   })
-  ipcMain.on('updateFloatingWindow', () => {
+  ipcMain.on(IPC_EVENTS.UPDATE_FLOATING_WINDOW, () => {
     if (floatingWindow) {
-      floatingWindow?.webContents.send('controledMihomoConfigUpdated')
-      floatingWindow?.webContents.send('appConfigUpdated')
+      floatingWindow?.webContents.send(IPC_EVENTS.CONTROLLED_MIHOMO_CONFIG_UPDATED)
+      floatingWindow?.webContents.send(IPC_EVENTS.APP_CONFIG_UPDATED)
     }
   })
   if (is.dev && process.env['ELECTRON_RENDERER_URL']) {
