@@ -183,66 +183,32 @@ The project uses pnpm (`pnpm@11.1.1`).
 
 These items are intentionally not fully completed yet.
 
-### P2: Full IPC contract typing
+### P2: Consolidate IPC contract authority
 
-The shared `IpcContract` now defines argument and result pairs for all invoke channels. `IpcArgs`/`IpcResult` and the preload `invoke` boundary derive their types from it, while `registerIpcHandler` provides typed overloads for contract-backed channels. The runtime channel array remains an explicit ordered list for stable registration assertions; its values are checked against the contract at compile time. Future cleanup can derive the runtime list from a generated/const contract representation if eliminating that list is required.
+The shared `IpcContract` now defines argument/result pairs for all invoke channels. `IpcArgs`/`IpcResult`, the preload `invoke` boundary, and `registerIpcHandler` derive their types from it. The runtime `IPC_CHANNELS` array remains an explicit ordered list for stable registration assertions, with compile-time checks against the contract.
 
-The original gradual migration shape remains useful for future event payload typing:
+Future work should decide whether to make the contract the single source of truth by deriving channel names and the runtime list from one const representation. Avoid adding another parallel channel declaration; preserving the explicit runtime order is acceptable if the contract remains the type authority.
 
-```ts
-interface IpcContract {
-  getAppConfig: {
-    args: [force?: boolean]
-    result: AppConfig
-  }
-  mihomoVersion: {
-    args: []
-    result: ControllerVersion
-  }
-}
-```
+### P2: Further split the main-process bootstrap
 
-Then derive typed invoke and handler helpers from it. Migrate high-risk channels first instead of rewriting the entire IPC surface at once.
-
-Decide on the contract's authority before starting: either make it the single source of truth (also deriving `IpcChannel`, `IPC_CHANNELS`, and handler types from it, so the existing channel list and per-handler registration no longer drift), or keep it as an additional layer. The former is preferable to avoid adding a fourth place to keep in sync.
-
-### P2: Split the main-process bootstrap
-
-`src/main/index.ts` still owns too many concerns:
-
-- startup orchestration;
-- single-instance handling;
-- main window lifecycle;
-- lightweight mode;
-- deep links;
-- core startup;
-- UI extras.
-
-The first low-risk split is now complete:
+The low-risk bootstrap split is complete:
 
 ```text
 src/main/bootstrap/single-instance.ts
 src/main/bootstrap/deep-link-wiring.ts
-```
-
-These modules own single-instance locking/second-instance handling and macOS open-url wiring. `index.ts` still owns the lifecycle-sensitive window/core startup orchestration. The startup task orchestration is now extracted to:
-
-```text
 src/main/bootstrap/startup-tasks.ts
+src/main/resolve/window-controller.ts
 ```
 
-It owns core startup, profile updater startup, traffic monitoring, shortcuts, floating window, and tray startup while receiving lifecycle dependencies from `index.ts`. Future work could introduce:
+These modules own single-instance handling, macOS open-url wiring, startup task orchestration, and Electron-independent window lifecycle behavior. `index.ts` still owns the lifecycle-sensitive Electron window creation and top-level orchestration, including lightweight mode and core startup.
 
-```text
-src/main/bootstrap/app-bootstrap.ts
-src/main/resolve/main-window.ts
-```
+Further extraction should be driven by lifecycle tests. Potential future modules are `src/main/bootstrap/app-bootstrap.ts` and `src/main/resolve/main-window.ts`; do not change startup ordering without dedicated coverage.
 
-This should be done only with lifecycle tests because startup ordering is sensitive. A lower-risk first step is to extract the order-insensitive modules (single-instance handling, deep-link wiring) and leave `createWindow` / `startCore` / `startMonitor` orchestration in place until their lifecycle is covered by tests.
+### P3: Improve event listener payload typing
 
-### P3: Improve event payload typing
+`IpcEventContract` now defines payload/result shapes for push and renderer-to-main events, with `IpcEventArgs` available to contract consumers. `send` is typed by event name and payload tuple. The preload listener boundary intentionally remains `any[]` because existing renderer callbacks have narrower independently declared parameter types; tightening it directly would create contravariance errors.
 
-Added `IpcEventContract` with payload/result shapes for all push and renderer-to-main events, plus `IpcEventArgs` for contract consumers. The preload listener boundary intentionally remains `any[]` for now because existing renderer callbacks have narrower independently declared parameter types; tightening it directly would create contravariance errors. `send` is typed by event name and payload tuple. Further migration can introduce typed listener helpers per event without breaking existing callbacks.
+Next step: introduce typed listener helpers per event, then migrate callbacks incrementally without breaking existing renderer APIs.
 
 ## Known risks and review notes
 
@@ -254,6 +220,7 @@ Added `IpcEventContract` with payload/result shapes for all push and renderer-to
 
 ## Suggested next sequence
 
-1. Introduce typed IPC argument/result contracts for the most-used channels, deciding first whether the contract becomes the single source of truth for channel names and handler types.
-2. Type event payloads (`IpcEventContract`) on the same boundary as the IPC contract.
-3. Split `index.ts` order-insensitive modules first; defer order-sensitive orchestration until lifecycle behavior has dedicated tests.
+1. Decide whether `IpcContract` becomes the single source of truth for channel names, runtime registration, and handler types.
+2. Add typed listener helpers and migrate renderer event callbacks incrementally.
+3. Add lifecycle coverage before extracting the remaining order-sensitive bootstrap and window creation logic.
+4. Manually smoke-test Electron window/core/service behavior on each supported OS before release.
