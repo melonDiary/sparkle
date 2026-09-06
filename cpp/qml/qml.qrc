@@ -1,0 +1,12 @@
+<RCC>
+  <qresource prefix="/qml">
+    <file>MainWindow.qml</file>
+    <file>Sidebar.qml</file>
+    <file>ProxyPage.qml</file>
+    <file>OverviewPage.qml</file>
+    <file>RulesPage.qml</file>
+    <file>LogsPage.qml</file>
+    <file>SettingsPage.qml</file>
+    <file>CorePage.qml</file>
+  </qresource>
+</RCC>

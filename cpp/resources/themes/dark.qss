@@ -1,0 +1,19 @@
+/* Sparkle dark theme (placeholder) */
+QMainWindow, QWidget {
+  background-color: #1e1e2e;
+  color: #cdd6f4;
+}
+QPushButton {
+  background-color: #313244;
+  border: 1px solid #45475a;
+  border-radius: 4px;
+  padding: 6px 14px;
+}
+QPushButton:hover { background-color: #45475a; }
+QLabel { color: #cdd6f4; }
+QLineEdit, QPlainTextEdit, QTextEdit, QComboBox {
+  background-color: #11111b;
+  color: #cdd6f4;
+  border: 1px solid #45475a;
+  border-radius: 4px;
+}

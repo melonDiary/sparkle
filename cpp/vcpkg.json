@@ -1,0 +1,17 @@
+{
+  "name": "sparkle",
+  "version-string": "1.26.7",
+  "description": "Sparkle - native Qt6 Mihomo GUI",
+  "homepage": "https://github.com/xishang0128/sparkle",
+  "license": "MIT",
+  "dependencies": [
+    "nlohmann-json",
+    "spdlog",
+    "yaml-cpp",
+    "quickjs",
+    {
+      "name": "gtest",
+      "default-features": false
+    }
+  ]
+}
