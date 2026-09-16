@@ -115,9 +115,17 @@ jobs:
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
           echo "tag=$TARGET_TAG" >> "$GITHUB_OUTPUT"
 
-  build:
+  # Run the pull request checks on the very commit being released, so a build
+  # with lint, type or test failures never reaches a stable release. Skipped
+  # together with the build when the run determines there is nothing to release.
+  checks:
     if: needs.prepare.outputs.should_release == 'true'
     needs: [prepare]
+    uses: ./.github/workflows/checks.yml
+
+  build:
+    if: needs.prepare.outputs.should_release == 'true'
+    needs: [prepare, checks]
     uses: ./.github/workflows/build.yml
     with:
       channel: stable
