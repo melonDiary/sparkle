@@ -37,7 +37,7 @@
     "@uruhalushia/sparkle-native": "^0.1.2",
     "adm-zip": "^0.6.0",
     "age-encryption": "^0.3.0",
-    "axios": "^1.19.0",
+    "axios": "^1.20.0",
     "dayjs": "^1.11.23",
     "express": "^5.2.1",
     "iconv-lite": "^0.7.3",
