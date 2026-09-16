@@ -44,7 +44,7 @@ module.exports = [
   },
 
   {
-    files: ['**/*.cjs', '**/*.mjs', '**/tailwind.config.js', '**/postcss.config.js'],
+    files: ['**/*.cjs', '**/*.mjs', '**/tailwind.config.js'],
     rules: {
       '@typescript-eslint/no-require-imports': 'off'
     }
