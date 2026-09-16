@@ -39,8 +39,13 @@ jobs:
           git check-ref-format "refs/tags/$TAG"
           echo "tag=$TAG" >> "$GITHUB_OUTPUT"
 
+  # Run the pull request checks on the very commit being released, so a build
+  # with lint, type or test failures never reaches the rolling release.
+  checks:
+    uses: ./.github/workflows/checks.yml
+
   build:
-    needs: [prepare]
+    needs: [prepare, checks]
     uses: ./.github/workflows/build.yml
     with:
       channel: rolling
