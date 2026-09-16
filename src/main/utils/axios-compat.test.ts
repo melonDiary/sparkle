@@ -26,11 +26,15 @@ beforeAll(async () => {
     res.writeHead(503, { 'Content-Type': 'application/json' })
     res.end(JSON.stringify({ error: 'unavailable' }))
   })
-  await new Promise<void>((resolve) => server.listen(socketPath, resolve))
+  await new Promise<void>((resolve) => {
+    server.listen(socketPath, resolve)
+  })
 })
 
 afterAll(async () => {
-  await new Promise<void>((resolve) => server.close(() => resolve()))
+  await new Promise<void>((resolve) => {
+    server.close(() => resolve())
+  })
   rmSync(socketPath, { force: true })
 })
 
