@@ -4,7 +4,7 @@ const { configs } = require('@electron-toolkit/eslint-config-ts')
 
 module.exports = [
   {
-    ignores: ['**/node_modules/**', '**/dist/**', '**/out/**', '**/extra/**']
+    ignores: ['**/node_modules/**', '**/dist/**', '**/out/**', '**/extra/**', 'cpp/build/**']
   },
 
   js.configs.recommended,
@@ -47,6 +47,27 @@ module.exports = [
     files: ['**/*.cjs', '**/*.mjs'],
     rules: {
       '@typescript-eslint/no-require-imports': 'off'
+    }
+  },
+
+  {
+    // Scripts executed inside the QuickJS and MITM sandboxes. The host injects
+    // their globals, and entry points such as onStartProxy or onRequest are
+    // invoked by name from C++, so they look undefined or unused to lint.
+    files: ['scripts/**/*.js', 'cpp/scripts/**/*.js', 'plugins/**/*.js', 'mitm/**/*.js'],
+    languageOptions: {
+      globals: {
+        core: 'readonly',
+        ui: 'readonly',
+        sparkle: 'readonly',
+        yaml: 'readonly',
+        b64e: 'readonly',
+        b64d: 'readonly'
+      }
+    },
+    rules: {
+      '@typescript-eslint/no-unused-vars': 'off',
+      '@typescript-eslint/explicit-function-return-type': 'off'
     }
   },
 

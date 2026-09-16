@@ -1,6 +1,5 @@
 import { TitleBarOverlayOptions } from 'electron'
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 function ipcErrorWrapper<T>(response: T): T {
   if (typeof response === 'object' && response !== null && 'invokeError' in response) {
     throw response.invokeError

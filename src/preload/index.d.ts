@@ -6,10 +6,11 @@ declare global {
     electron: {
       ipcRenderer: {
         // The channel is type-safe; result typing remains defined by each renderer wrapper.
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         invoke: <C extends IpcChannelName>(channel: C, ...args: IpcArgs<C>) => Promise<IpcResult<C>>
         on: (
           channel: IpcEventName,
+          // Electron mirrors this listener signature, so forwarded args stay untyped.
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
           listener: (event: IpcRendererEvent, ...args: any[]) => void
         ) => () => void
         send: <E extends IpcEventName>(channel: E, ...args: IpcEventArgs<E>) => void
