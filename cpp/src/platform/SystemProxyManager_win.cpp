@@ -22,7 +22,7 @@ void notifySystemSettingsChanged() {
 
 class SystemProxyWindows final : public ISystemProxy {
 public:
-  void setManualProxy(const QString& host, unsigned short port,
+  bool setManualProxy(const QString& host, unsigned short port,
                       const QStringList& bypass) override {
     QSettings settings(kInternetSettings, QSettings::NativeFormat);
     settings.setValue(QStringLiteral("ProxyEnable"), 1);
@@ -34,24 +34,27 @@ public:
     settings.setValue(QStringLiteral("AutoDetect"), 0);
     settings.sync();
     notifySystemSettingsChanged();
+    return settings.status() == QSettings::NoError;
   }
 
-  void setAutoProxy(const QUrl& pacUrl) override {
+  bool setAutoProxy(const QUrl& pacUrl) override {
     QSettings settings(kInternetSettings, QSettings::NativeFormat);
     settings.setValue(QStringLiteral("ProxyEnable"), 0);
     settings.setValue(QStringLiteral("AutoConfigURL"), pacUrl.toString());
     settings.setValue(QStringLiteral("AutoDetect"), 0);
     settings.sync();
     notifySystemSettingsChanged();
+    return settings.status() == QSettings::NoError;
   }
 
-  void clearProxy() override {
+  bool clearProxy() override {
     QSettings settings(kInternetSettings, QSettings::NativeFormat);
     settings.setValue(QStringLiteral("ProxyEnable"), 0);
     settings.setValue(QStringLiteral("AutoConfigURL"), QString());
     settings.setValue(QStringLiteral("AutoDetect"), 0);
     settings.sync();
     notifySystemSettingsChanged();
+    return settings.status() == QSettings::NoError;
   }
 
   ProxyStatus status() override {

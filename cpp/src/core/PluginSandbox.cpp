@@ -20,6 +20,13 @@ namespace sparkle::core {
 namespace {
 using json = nlohmann::json;
 
+// 同线程重入标志守卫：进入插件脚本执行时置位，离开时复位（含异常路径）。
+struct FlagGuard {
+  bool* flag;
+  explicit FlagGuard(bool* value) : flag(value) { *flag = true; }
+  ~FlagGuard() { *flag = false; }
+};
+
 QString jsToString(JSContext* ctx, JSValueConst value) {
   const char* text = JS_ToCString(ctx, value);
   if (!text) return {};
@@ -235,6 +242,13 @@ QString PluginSandbox::exceptionText() {
 }
 
 bool PluginSandbox::callFunction(JSValue function) {
+  // 重入保护：脚本内 http.get 的嵌套事件循环会让 Qt 信号再次派发插件生命周期事件，
+  // 直接二次进入 QuickJS 会破坏 Runtime，此处拒绝并记录。
+  if (jsInFlight_) {
+    setError(QStringLiteral("拒绝重入执行插件脚本（仍有 JS 正在运行）"));
+    return false;
+  }
+  FlagGuard guard(&jsInFlight_);
   const qint64 previousDeadline = deadlineMs_;
   deadlineMs_ = QDateTime::currentMSecsSinceEpoch() + 5000;
   JSValue result = JS_Call(context_.get(), function, JS_UNDEFINED, 0, nullptr);

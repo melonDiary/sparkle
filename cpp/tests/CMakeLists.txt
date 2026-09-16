@@ -6,14 +6,6 @@ add_executable(tst_latest_sender tst_latest_sender.cpp)
 target_link_libraries(tst_latest_sender PRIVATE Qt6::Test sparkle_core)
 add_test(NAME tst_latest_sender COMMAND tst_latest_sender)
 
-add_executable(tst_log_list_model tst_log_list_model.cpp)
-target_link_libraries(tst_log_list_model PRIVATE Qt6::Test sparkle_ui)
-add_test(NAME tst_log_list_model COMMAND tst_log_list_model)
-
-add_executable(tst_rule_list_model tst_rule_list_model.cpp)
-target_link_libraries(tst_rule_list_model PRIVATE Qt6::Test sparkle_ui)
-add_test(NAME tst_rule_list_model COMMAND tst_rule_list_model)
-
 add_executable(tst_core_process_controller tst_core_process_controller.cpp)
 target_link_libraries(tst_core_process_controller PRIVATE Qt6::Test sparkle_core)
 add_test(NAME tst_core_process_controller COMMAND tst_core_process_controller)

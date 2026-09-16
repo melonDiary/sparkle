@@ -1,5 +1,8 @@
 #include <QApplication>
+#include <QColor>
 #include <QDir>
+#include <QPalette>
+#include <QQuickStyle>
 #include <QSystemTrayIcon>
 #include <QFileInfo>
 #include <QQmlApplicationEngine>
@@ -20,11 +23,37 @@
 #include "app_model.h"
 #include "script_bridge.h"
 
+// 默认的「启动/停止/重启」脚本实现，注入 ScriptEngine 保证按钮开箱可用；
+// 外部 scripts/example.js 若已定义同名函数则不会被覆盖。
+static const char kDefaultProxyScript[] =
+    "(function(){\n"
+    "  var g = (typeof globalThis !== 'undefined') ? globalThis : this;\n"
+    "  if (typeof g.onStartProxy === 'undefined') g.onStartProxy = function(){ return (typeof core !== 'undefined' && core) ? core.start() : false; };\n"
+    "  if (typeof g.onStopProxy === 'undefined') g.onStopProxy = function(){ return (typeof core !== 'undefined' && core) ? core.stop() : false; };\n"
+    "  if (typeof g.onRestartProxy === 'undefined') g.onRestartProxy = function(){ if (typeof core !== 'undefined' && core) core.restart(); return true; };\n"
+    "})();";
+
 int main(int argc, char* argv[]) {
   QApplication app(argc, argv);
   QApplication::setApplicationName(QStringLiteral("sparkle"));
   QApplication::setApplicationVersion(QStringLiteral("1.26.7"));
   sparkle::core::registerCoreMetatypes();
+
+  // 强制非原生控件样式，让 QML 里自定义的 background/contentItem 生效
+  // （macOS 原生样式会忽略这些覆盖，导致侧栏导航等自定义控件渲染异常）。
+  QQuickStyle::setStyle(QStringLiteral("Fusion"));
+  // 再套一层暗色 palette，让 Switch/ComboBox 等默认控件与整体深色主题一致。
+  QPalette darkPalette;
+  darkPalette.setColor(QPalette::Window, QColor(0x1e, 0x1f, 0x2b));
+  darkPalette.setColor(QPalette::WindowText, QColor(0xee, 0xf0, 0xff));
+  darkPalette.setColor(QPalette::Base, QColor(0x29, 0x2c, 0x3c));
+  darkPalette.setColor(QPalette::AlternateBase, QColor(0x24, 0x26, 0x35));
+  darkPalette.setColor(QPalette::Text, QColor(0xcd, 0xd6, 0xf4));
+  darkPalette.setColor(QPalette::Button, QColor(0x29, 0x2c, 0x3c));
+  darkPalette.setColor(QPalette::ButtonText, QColor(0xee, 0xf0, 0xff));
+  darkPalette.setColor(QPalette::Highlight, QColor(0x89, 0xb4, 0xfa));
+  darkPalette.setColor(QPalette::HighlightedText, QColor(0x11, 0x11, 0x1b));
+  app.setPalette(darkPalette);
 
   const QString exeDir = QFileInfo(app.applicationFilePath()).absolutePath();
   const bool portable = QFileInfo::exists(exeDir + QStringLiteral("/PORTABLE"));
@@ -39,7 +68,7 @@ int main(int argc, char* argv[]) {
 
   using namespace sparkle;
   // QML 是唯一的可见 UI；不创建历史 Qt Widgets 主窗口，避免两套 UI 同时存在。
-  auto controller = std::make_unique<core::AppController>(nullptr, false);
+  auto controller = std::make_unique<core::AppController>(nullptr);
   core::ScriptEngine scriptEngine(controller->logManager());
   ui::AppModel appModel;
   ui::ScriptBridge scriptBridge;
@@ -62,6 +91,10 @@ int main(int argc, char* argv[]) {
           break;
         }
       }
+
+      // 无论外部脚本是否加载成功，都注入默认实现，保证「启动/停止/重启」开箱可用。
+      // 若外部脚本已定义同名函数，则不会被覆盖。
+      scriptEngine.evaluate(kDefaultProxyScript);
     } catch (const core::ScriptError& error) {
       controller->logManager()->appendAppLog(
           QStringLiteral("[main] 示例脚本加载失败：%1\n").arg(QString::fromUtf8(error.what())));
@@ -71,6 +104,8 @@ int main(int argc, char* argv[]) {
   appModel.setApiClient(controller->apiClient());
   appModel.setLogManager(controller->logManager());
   appModel.setSystemProxyManager(controller->systemProxyManager());
+  appModel.setConfigManager(controller->configManager());
+  appModel.setSubscriptionManager(controller->subscriptionManager());
   QObject::connect(&appModel, &ui::AppModel::errorMessage, &appModel,
                    [&appModel](const QString& message) {
                      appModel.setStatusMessage(message);

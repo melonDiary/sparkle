@@ -8,7 +8,7 @@ Page {
 
     property var appModel
     property var scriptBridge
-    background: Rectangle { color: "#1e1f2b" }
+    background: Rectangle { color: Theme.background }
 
     ColumnLayout {
         anchors.fill: parent
@@ -23,13 +23,13 @@ Page {
                 spacing: 4
                 Label {
                     text: "代理节点"
-                    color: "#f5f5f5"
+                    color: Theme.text
                     font.pixelSize: 28
                     font.bold: true
                 }
                 Label {
                     text: appModel && appModel.running ? "内核正在运行 · 节点状态实时同步" : "启动内核后可查看实时节点状态"
-                    color: "#9399b2"
+                    color: Theme.textMuted
                     font.pixelSize: 13
                 }
             }
@@ -52,43 +52,25 @@ Page {
         RowLayout {
             Layout.fillWidth: true
             spacing: 12
-            Rectangle {
-                Layout.fillWidth: true
-                implicitHeight: 76
-                radius: 12
-                color: "#292c3c"
-                Column {
-                    anchors.fill: parent
-                    anchors.margins: 16
-                    spacing: 5
-                    Label { text: "节点数量"; color: "#9399b2"; font.pixelSize: 12 }
-                    Label { text: appModel ? appModel.proxies.length : 0; color: "#cdd6f4"; font.pixelSize: 22; font.bold: true }
-                }
-            }
-            Rectangle {
-                Layout.fillWidth: true
-                implicitHeight: 76
-                radius: 12
-                color: "#292c3c"
-                Column {
-                    anchors.fill: parent
-                    anchors.margins: 16
-                    spacing: 5
-                    Label { text: "代理组"; color: "#9399b2"; font.pixelSize: 12 }
-                    Label { text: appModel ? Math.max(0, appModel.groupNames.length - 1) : 0; color: "#cdd6f4"; font.pixelSize: 22; font.bold: true }
-                }
-            }
-            Rectangle {
-                Layout.fillWidth: true
-                implicitHeight: 76
-                radius: 12
-                color: "#292c3c"
-                Column {
-                    anchors.fill: parent
-                    anchors.margins: 16
-                    spacing: 5
-                    Label { text: "控制器"; color: "#9399b2"; font.pixelSize: 12 }
-                    Label { text: appModel && appModel.controllerVersion !== "" ? appModel.controllerVersion : "未连接"; color: appModel && appModel.controllerVersion !== "" ? "#a6e3a1" : "#f9e2af"; font.pixelSize: 18; font.bold: true }
+            Repeater {
+                model: [
+                    { label: "节点数量", value: appModel ? String(appModel.proxies.length) : "0" },
+                    { label: "代理组", value: appModel ? String(Math.max(0, appModel.groupNames.length - 1)) : "0" },
+                    { label: "控制器", value: appModel && appModel.controllerVersion !== "" ? appModel.controllerVersion : "未连接" }
+                ]
+                delegate: Rectangle {
+                    required property var modelData
+                    Layout.fillWidth: true
+                    implicitHeight: 76
+                    radius: 12
+                    color: Theme.content1
+                    Column {
+                        anchors.fill: parent
+                        anchors.margins: 16
+                        spacing: 5
+                        Label { text: modelData.label; color: Theme.textMuted; font.pixelSize: 12 }
+                        Label { text: modelData.value; color: Theme.text; font.pixelSize: 22; font.bold: true }
+                    }
                 }
             }
         }
@@ -106,9 +88,16 @@ Page {
                 width: proxyList.width
                 height: 72
                 radius: 12
-                color: mouseArea.containsMouse ? "#34384d" : "#292c3c"
-                border.width: modelData.alive ? 1 : 0
-                border.color: "#a6e3a1"
+                color: mouseArea.containsMouse ? Theme.hover : Theme.content1
+                border.width: modelData.current ? 2 : (modelData.alive ? 1 : 0)
+                border.color: modelData.current ? Theme.primary : Theme.success
+
+                MouseArea {
+                    id: mouseArea
+                    anchors.fill: parent
+                    hoverEnabled: true
+                    onClicked: { if (appModel) appModel.activateNode(modelData.name) }
+                }
 
                 RowLayout {
                     anchors.fill: parent
@@ -119,29 +108,46 @@ Page {
                         width: 9
                         height: 9
                         radius: 5
-                        color: modelData.alive ? "#a6e3a1" : "#6c7086"
+                        color: modelData.current ? Theme.primary : (modelData.alive ? Theme.success : Theme.textDim)
                     }
                     ColumnLayout {
                         Layout.fillWidth: true
                         spacing: 3
-                        Label { text: modelData.name || "未命名节点"; color: "#eef0ff"; font.bold: true; font.pixelSize: 15 }
-                        Label { text: (modelData.type || "Unknown") + (modelData.provider ? " · " + modelData.provider : ""); color: "#9399b2"; font.pixelSize: 12 }
+                        Label {
+                            text: (modelData.name || "未命名节点") + (modelData.current ? "  ·  当前" : "")
+                            color: modelData.current ? Theme.primary : Theme.text
+                            font.bold: true
+                            font.pixelSize: 15
+                            elide: Text.ElideRight
+                            Layout.fillWidth: true
+                        }
+                        Label {
+                            text: (modelData.type || "Unknown") + (modelData.provider ? " · " + modelData.provider : "")
+                            color: Theme.textMuted
+                            font.pixelSize: 12
+                            elide: Text.ElideRight
+                            Layout.fillWidth: true
+                        }
                     }
                     Column {
                         spacing: 3
-                        Label { text: modelData.delay >= 0 ? modelData.delay + " ms" : "未测试"; color: modelData.alive ? "#a6e3a1" : "#9399b2"; font.bold: true; horizontalAlignment: Text.AlignRight; width: 70 }
-                        Label { text: modelData.server || "本地节点"; color: "#6c7086"; font.pixelSize: 11; horizontalAlignment: Text.AlignRight; width: 110; elide: Text.ElideRight }
+                        Label { text: modelData.delay >= 0 ? modelData.delay + " ms" : "未测试"; color: modelData.alive ? Theme.success : Theme.textMuted; font.bold: true; horizontalAlignment: Text.AlignRight; width: 70 }
+                        Label { text: modelData.server || "本地节点"; color: Theme.textDim; font.pixelSize: 11; horizontalAlignment: Text.AlignRight; width: 110; elide: Text.ElideRight }
+                    }
+                    Button {
+                        text: "测速"
+                        flat: true
+                        onClicked: { if (appModel) appModel.testNodeDelay(modelData.name) }
                     }
                 }
-                MouseArea { id: mouseArea; anchors.fill: parent; hoverEnabled: true }
             }
 
             Column {
                 anchors.centerIn: parent
                 visible: proxyList.count === 0
                 spacing: 8
-                Label { anchors.horizontalCenter: parent.horizontalCenter; text: "◈"; color: "#45475a"; font.pixelSize: 36 }
-                Label { text: "暂无代理节点"; color: "#7f849c"; font.pixelSize: 14 }
+                Label { anchors.horizontalCenter: parent.horizontalCenter; text: "◈"; color: Theme.content3; font.pixelSize: 36 }
+                Label { text: "暂无代理节点"; color: Theme.textMuted; font.pixelSize: 14 }
             }
         }
     }

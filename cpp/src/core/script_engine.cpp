@@ -5,6 +5,8 @@
 #include <QTextStream>
 
 #include <QByteArray>
+#include <QDateTime>
+#include <QThread>
 
 #include <utility>
 
@@ -81,7 +83,30 @@ QString eventNameFromValue(JSContext* ctx, JSValueConst value) {
   return jsString(ctx, value).trimmed().toLower();
 }
 
+constexpr qint64 kScriptTimeoutMs = 5000;
+
+// QuickJS 中断处理器：deadline 过期返回 1，使 QuickJS 抛出 "interrupted" 异常，
+// 从而打断 while(true)/长循环。opaque 指向 ScriptEngine::deadlineMs_。
+int scriptInterruptHandler(JSRuntime*, void* opaque) {
+  const auto* deadline = static_cast<const qint64*>(opaque);
+  return QDateTime::currentMSecsSinceEpoch() > *deadline ? 1 : 0;
+}
+
 }  // namespace
+
+ScriptEngine::ReentryGuard::~ReentryGuard() {
+  // 保持 jsInFlight_ = true，直到把重入期间被延迟的 core 回调全部执行完，
+  // 避免回放期间再次派发信号导致二次进入 QuickJS。
+  while (!engine_->deferredCallbacks_.empty()) {
+    auto item = std::move(engine_->deferredCallbacks_.back());
+    engine_->deferredCallbacks_.pop_back();
+    engine_->invokeCallbacksNow(item.first, item.second);
+    for (JSValue value : item.second) {
+      JS_FreeValue(engine_->ctx_.get(), value);
+    }
+  }
+  engine_->jsInFlight_ = false;
+}
 
 ScriptEngine::ScriptEngine(LogManager* log, QObject* parent)
     : QObject(parent), log_(log) {}
@@ -113,6 +138,9 @@ bool ScriptEngine::initialize() {
   }
 
   JS_SetContextOpaque(ctx_.get(), this);
+  // 超时中断防线：与 kScriptTimeoutMs 配合，脚本死循环会被打断为异常。
+  JS_SetInterruptHandler(runtime_.get(), &scriptInterruptHandler, &deadlineMs_);
+  ownerThread_ = QThread::currentThread();
   try {
     installConsoleObject();
     installUiObject();
@@ -148,6 +176,11 @@ void ScriptEngine::recordError(const QString& message) {
 
 std::string ScriptEngine::evaluate(const std::string& code) {
   ensureInitialized();
+  if (jsInFlight_) {
+    throwScriptError(QStringLiteral("拒绝重入执行 JavaScript（仍有 JS 正在运行）"));
+  }
+  ReentryGuard guard(this);
+  deadlineMs_ = QDateTime::currentMSecsSinceEpoch() + kScriptTimeoutMs;
 
   JSValue result = JS_Eval(ctx_.get(), code.c_str(), code.size(), "<evaluate>",
                            JS_EVAL_TYPE_GLOBAL);
@@ -220,6 +253,11 @@ std::string ScriptEngine::loadScript(const std::string& path) {
 
 std::string ScriptEngine::invokeFunction(const std::string& name) {
   ensureInitialized();
+  if (jsInFlight_) {
+    throwScriptError(QStringLiteral("拒绝重入执行 JavaScript（仍有 JS 正在运行）"));
+  }
+  ReentryGuard guard(this);
+  deadlineMs_ = QDateTime::currentMSecsSinceEpoch() + kScriptTimeoutMs;
   if (name.empty()) {
     throwScriptError(QStringLiteral("调用 JavaScript 函数失败：名称为空"));
   }
@@ -532,6 +570,30 @@ void ScriptEngine::clearCallbacks() {
 
 void ScriptEngine::invokeCallbacks(const QString& event, const std::vector<JSValue>& args) {
   if (!ctx_) return;
+  // QuickJS 非线程安全：跨线程执行 JS 会破坏 Runtime，直接拒绝。
+  if (ownerThread_ && QThread::currentThread() != ownerThread_) {
+    recordError(QStringLiteral("拒绝跨线程执行 JS 回调（QuickJS 非线程安全）"));
+    return;
+  }
+
+  // 同线程重入（脚本内 fetch 的嵌套事件循环期间派发的 core 事件）：先入队延迟执行，
+  // 待外层 JS 执行结束后由 ReentryGuard 统一回放，避免二次进入 QuickJS 破坏 Runtime。
+  if (jsInFlight_) {
+    std::vector<JSValue> dup;
+    dup.reserve(args.size());
+    for (const JSValue value : args) {
+      dup.push_back(JS_DupValue(ctx_.get(), value));
+    }
+    deferredCallbacks_.emplace_back(event, std::move(dup));
+    return;
+  }
+
+  ReentryGuard guard(this);
+  invokeCallbacksNow(event, args);
+}
+
+void ScriptEngine::invokeCallbacksNow(const QString& event, const std::vector<JSValue>& args) {
+  deadlineMs_ = QDateTime::currentMSecsSinceEpoch() + kScriptTimeoutMs;
 
   // 先复制引用，避免回调执行过程中再次 core.on() 导致 vector 扩容而使迭代器失效。
   std::vector<JSValue> functions;

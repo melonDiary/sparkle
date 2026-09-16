@@ -1,0 +1,2 @@
+# 同目录 qmldir：随隐式目录导入生效，向所有同目录 QML 暴露 Theme 单例。
+singleton Theme 1.0 Theme.qml

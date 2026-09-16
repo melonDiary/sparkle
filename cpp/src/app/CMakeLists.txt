@@ -3,7 +3,7 @@ add_executable(sparkle
   app_controller.h app_controller.cpp
 )
 target_sources(sparkle PRIVATE ${SPARKLE_QML_RESOURCE})
-target_link_libraries(sparkle PRIVATE sparkle_ui sparkle_core Qt6::Quick Qt6::Qml Qt6::QuickControls2)
+target_link_libraries(sparkle PRIVATE sparkle_ui sparkle_core Qt6::Quick Qt6::Qml Qt6::QuickControls2 Qt6::Widgets)
 
 if(WIN32)
   set_target_properties(sparkle PROPERTIES WIN32_EXECUTABLE TRUE)

@@ -73,36 +73,50 @@ bool runNetworksetup(const QStringList& arguments) {
 
 class SystemProxyMac final : public ISystemProxy {
 public:
-  void setManualProxy(const QString& host, unsigned short port,
+  bool setManualProxy(const QString& host, unsigned short port,
                       const QStringList& bypass) override {
     const QString service = defaultService();
-    if (service.isEmpty()) return;
+    if (service.isEmpty()) return false;
     const QString portText = QString::number(port);
-    runNetworksetup({QStringLiteral("-setwebproxy"), service, host, portText});
-    runNetworksetup({QStringLiteral("-setsecurewebproxy"), service, host, portText});
+    bool ok = runNetworksetup({QStringLiteral("-setwebproxy"), service, host, portText});
+    ok = runNetworksetup(
+             {QStringLiteral("-setsecurewebproxy"), service, host, portText}) &&
+         ok;
 
     QStringList arguments{QStringLiteral("-setproxybypassdomains"), service};
     arguments.append(bypass);
     runNetworksetup(arguments);
     // 清理上一次可能残留的 PAC 配置。
     runNetworksetup({QStringLiteral("-setautoproxystate"), service, QStringLiteral("off")});
+    return ok;
   }
 
-  void setAutoProxy(const QUrl& pacUrl) override {
+  bool setAutoProxy(const QUrl& pacUrl) override {
     const QString service = defaultService();
-    if (service.isEmpty()) return;
-    runNetworksetup({QStringLiteral("-setautoproxyurl"), service, pacUrl.toString()});
-    runNetworksetup({QStringLiteral("-setautoproxystate"), service, QStringLiteral("on")});
+    if (service.isEmpty()) return false;
+    bool ok = runNetworksetup(
+        {QStringLiteral("-setautoproxyurl"), service, pacUrl.toString()});
+    ok = runNetworksetup(
+             {QStringLiteral("-setautoproxystate"), service, QStringLiteral("on")}) &&
+         ok;
     runNetworksetup({QStringLiteral("-setwebproxystate"), service, QStringLiteral("off")});
-    runNetworksetup({QStringLiteral("-setsecurewebproxystate"), service, QStringLiteral("off")});
+    runNetworksetup(
+        {QStringLiteral("-setsecurewebproxystate"), service, QStringLiteral("off")});
+    return ok;
   }
 
-  void clearProxy() override {
+  bool clearProxy() override {
     const QString service = defaultService();
-    if (service.isEmpty()) return;
-    runNetworksetup({QStringLiteral("-setwebproxystate"), service, QStringLiteral("off")});
-    runNetworksetup({QStringLiteral("-setsecurewebproxystate"), service, QStringLiteral("off")});
-    runNetworksetup({QStringLiteral("-setautoproxystate"), service, QStringLiteral("off")});
+    if (service.isEmpty()) return false;
+    bool ok = runNetworksetup(
+        {QStringLiteral("-setwebproxystate"), service, QStringLiteral("off")});
+    ok = runNetworksetup(
+             {QStringLiteral("-setsecurewebproxystate"), service, QStringLiteral("off")}) &&
+         ok;
+    ok = runNetworksetup(
+             {QStringLiteral("-setautoproxystate"), service, QStringLiteral("off")}) &&
+         ok;
+    return ok;
   }
 
   ProxyStatus status() override {

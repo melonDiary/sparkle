@@ -51,6 +51,15 @@ public:
   void unfixProxy(const QString& group,
                   const std::function<void(const ProxyGroup&)>& onDone = {},
                   const std::function<void(const QString&)>& onError = {});
+  // 触发一次节点延迟测试（GET /proxies/{name}/delay）。onDone 收到毫秒延迟（-1=超时/失败）。
+  void testDelay(const QString& proxy, const std::function<void(int)>& onDone,
+                 const std::function<void(const QString&)>& onError = {});
+  // 关闭单条连接（DELETE /connections/{id}）。
+  void closeConnection(const QString& id, const std::function<void()>& onDone = {},
+                       const std::function<void(const QString&)>& onError = {});
+  // 关闭全部连接（DELETE /connections）。
+  void closeAllConnections(const std::function<void()>& onDone = {},
+                           const std::function<void(const QString&)>& onError = {});
 
 signals:
   void trafficUpdated(const sparkle::core::TrafficStats& stats);                       // 节流 100ms

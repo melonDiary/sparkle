@@ -3,6 +3,7 @@
 #include <QObject>
 #include <QMetaObject>
 #include <QString>
+#include <QThread>
 
 #include <deque>
 #include <memory>
@@ -10,6 +11,7 @@
 #include <string>
 #include <functional>
 #include <type_traits>
+#include <utility>
 #include <vector>
 
 #include "models.h"
@@ -142,6 +144,20 @@ private:
     JSValue function = JS_UNDEFINED;  // 由 JS_DupValue 持有，析构前在 context 中释放。
   };
 
+  // 同线程重入守卫：脚本内 fetch 的嵌套 QEventLoop 会让 Qt 信号在 JS 执行期间再次派发，
+  // 若此时直接再进入 QuickJS 会破坏 Runtime。ReentryGuard 在 JS 执行期间持有 jsInFlight_，
+  // 析构时按序回放期间被延迟的 core 回调。
+  class ReentryGuard {
+  public:
+    explicit ReentryGuard(ScriptEngine* engine) : engine_(engine) {
+      engine_->jsInFlight_ = true;
+    }
+    ~ReentryGuard();
+
+  private:
+    ScriptEngine* engine_;
+  };
+
   template <typename T>
   static JSClassID& classId() {
     static JSClassID id = JS_INVALID_CLASS_ID;
@@ -190,6 +206,7 @@ private:
   void disconnectCoreSignals();
   void clearCallbacks();
   void invokeCallbacks(const QString& event, const std::vector<JSValue>& args);
+  void invokeCallbacksNow(const QString& event, const std::vector<JSValue>& args);
 
   void onCoreLog(const QString& line);
   void onCoreCrash(int exitCode);
@@ -207,6 +224,15 @@ private:
   std::function<void(const QString&)> uiStatusHandler_;
   std::vector<QMetaObject::Connection> coreConnections_;
   std::vector<JsCallback> callbacks_;
+  bool jsInFlight_ = false;
+  std::vector<std::pair<QString, std::vector<JSValue>>> deferredCallbacks_;
+
+  // QuickJS 超时中断防线：每次执行 JS 前重新武装为 now + 超时；中断处理器（见
+  // script_engine.cpp 的 scriptInterruptHandler）据此把 while(true) 等死循环打断为异常。
+  qint64 deadlineMs_ = 0;
+
+  // QuickJS 单线程约束：记录创建该 Runtime 的线程，跨线程调用会被拒绝（仅记录/返回）。
+  QThread* ownerThread_ = nullptr;
 };
 
 }  // namespace sparkle::core

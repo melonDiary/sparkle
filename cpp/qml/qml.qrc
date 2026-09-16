@@ -1,12 +1,19 @@
 <RCC>
   <qresource prefix="/qml">
+    <file>qmldir</file>
+    <file>Theme.qml</file>
     <file>MainWindow.qml</file>
     <file>Sidebar.qml</file>
     <file>ProxyPage.qml</file>
     <file>OverviewPage.qml</file>
+    <file>ConnectionsPage.qml</file>
+    <file>ProfilesPage.qml</file>
     <file>RulesPage.qml</file>
     <file>LogsPage.qml</file>
     <file>SettingsPage.qml</file>
+    <file>TunPage.qml</file>
+    <file>DnsPage.qml</file>
+    <file>SnifferPage.qml</file>
     <file>CorePage.qml</file>
   </qresource>
 </RCC>

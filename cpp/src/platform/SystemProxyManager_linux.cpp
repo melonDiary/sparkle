@@ -19,44 +19,57 @@ bool runGSettings(const QStringList& arguments, QByteArray* output = nullptr) {
   return process.exitStatus() == QProcess::NormalExit && process.exitCode() == 0;
 }
 
-void setString(const QString& schema, const QString& key, const QString& value) {
-  runGSettings({QStringLiteral("set"), schema, key, value});
+bool setString(const QString& schema, const QString& key, const QString& value) {
+  return runGSettings({QStringLiteral("set"), schema, key, value});
 }
 
 class SystemProxyLinux final : public ISystemProxy {
 public:
-  void setManualProxy(const QString& host, unsigned short port,
+  bool setManualProxy(const QString& host, unsigned short port,
                       const QStringList& bypass) override {
-    setString(QStringLiteral("org.gnome.system.proxy"), QStringLiteral("mode"),
-              QStringLiteral("manual"));
-    setString(QStringLiteral("org.gnome.system.proxy.http"), QStringLiteral("host"), host);
-    setString(QStringLiteral("org.gnome.system.proxy.http"), QStringLiteral("port"),
-              QString::number(port));
-    setString(QStringLiteral("org.gnome.system.proxy.https"), QStringLiteral("host"), host);
-    setString(QStringLiteral("org.gnome.system.proxy.https"), QStringLiteral("port"),
-              QString::number(port));
+    bool ok = runGSettings({QStringLiteral("set"), QStringLiteral("org.gnome.system.proxy"),
+                            QStringLiteral("mode"), QStringLiteral("manual")});
+    ok = setString(QStringLiteral("org.gnome.system.proxy.http"), QStringLiteral("host"),
+                   host) &&
+         ok;
+    ok = setString(QStringLiteral("org.gnome.system.proxy.http"), QStringLiteral("port"),
+                   QString::number(port)) &&
+         ok;
+    ok = setString(QStringLiteral("org.gnome.system.proxy.https"), QStringLiteral("host"),
+                   host) &&
+         ok;
+    ok = setString(QStringLiteral("org.gnome.system.proxy.https"), QStringLiteral("port"),
+                   QString::number(port)) &&
+         ok;
     // ignore-hosts 是 GSettings 数组，不能传逗号拼接的裸字符串。
     QStringList values;
     values.reserve(bypass.size());
     for (const QString& item : bypass) values << QStringLiteral("'%1'").arg(item);
-    setString(QStringLiteral("org.gnome.system.proxy"), QStringLiteral("ignore-hosts"),
-              QStringLiteral("[%1]").arg(values.join(QStringLiteral(", "))));
-    setString(QStringLiteral("org.gnome.system.proxy"), QStringLiteral("autoconfig-url"),
-              QString());
+    ok = setString(QStringLiteral("org.gnome.system.proxy"), QStringLiteral("ignore-hosts"),
+                   QStringLiteral("[%1]").arg(values.join(QStringLiteral(", ")))) &&
+         ok;
+    ok = setString(QStringLiteral("org.gnome.system.proxy"), QStringLiteral("autoconfig-url"),
+                   QString()) &&
+         ok;
+    return ok;
   }
 
-  void setAutoProxy(const QUrl& pacUrl) override {
-    setString(QStringLiteral("org.gnome.system.proxy"), QStringLiteral("mode"),
-              QStringLiteral("auto"));
-    setString(QStringLiteral("org.gnome.system.proxy"), QStringLiteral("autoconfig-url"),
-              pacUrl.toString());
+  bool setAutoProxy(const QUrl& pacUrl) override {
+    bool ok = runGSettings({QStringLiteral("set"), QStringLiteral("org.gnome.system.proxy"),
+                            QStringLiteral("mode"), QStringLiteral("auto")});
+    ok = setString(QStringLiteral("org.gnome.system.proxy"), QStringLiteral("autoconfig-url"),
+                   pacUrl.toString()) &&
+         ok;
+    return ok;
   }
 
-  void clearProxy() override {
-    setString(QStringLiteral("org.gnome.system.proxy"), QStringLiteral("mode"),
-              QStringLiteral("none"));
-    setString(QStringLiteral("org.gnome.system.proxy"), QStringLiteral("autoconfig-url"),
-              QString());
+  bool clearProxy() override {
+    bool ok = runGSettings({QStringLiteral("set"), QStringLiteral("org.gnome.system.proxy"),
+                            QStringLiteral("mode"), QStringLiteral("none")});
+    ok = setString(QStringLiteral("org.gnome.system.proxy"), QStringLiteral("autoconfig-url"),
+                   QString()) &&
+         ok;
+    return ok;
   }
 
   ProxyStatus status() override {

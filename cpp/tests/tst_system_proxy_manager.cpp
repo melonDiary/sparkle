@@ -15,24 +15,27 @@ namespace {
 
 class FakeSystemProxy final : public sparkle::platform::ISystemProxy {
 public:
-  void setManualProxy(const QString& host, unsigned short port,
+  bool setManualProxy(const QString& host, unsigned short port,
                       const QStringList& bypass) override {
     ++manualCalls;
     lastHost = host;
     lastPort = port;
     lastBypass = bypass;
     currentStatus = sparkle::platform::ProxyStatus::Manual;
+    return true;
   }
 
-  void setAutoProxy(const QUrl& pacUrl) override {
+  bool setAutoProxy(const QUrl& pacUrl) override {
     ++autoCalls;
     lastPacUrl = pacUrl;
     currentStatus = sparkle::platform::ProxyStatus::Auto;
+    return true;
   }
 
-  void clearProxy() override {
+  bool clearProxy() override {
     ++clearCalls;
     currentStatus = sparkle::platform::ProxyStatus::Disabled;
+    return true;
   }
 
   sparkle::platform::ProxyStatus status() override { return currentStatus; }
@@ -130,6 +133,29 @@ private slots:
     QCOMPARE(backendPtr->autoCalls, 1);
     QCOMPARE(backendPtr->clearCalls, 1);
     QVERIFY(!manager.isProxyEnabled());
+  }
+
+  void guardReappliesWhenProxyIsExternallyDisabled() {
+    ConfigManager config;
+    config.replaceControlledMihomoConfig(nlohmann::json{{"mixed-port", 7892}});
+    SysProxyConfig proxyConfig = config.sysProxyConfig();
+    proxyConfig.mode = SysProxyMode::Manual;
+    proxyConfig.guard = true;
+    config.setSysProxyConfig(proxyConfig);
+
+    auto backend = std::make_unique<FakeSystemProxy>();
+    FakeSystemProxy* backendPtr = backend.get();
+    SystemProxyManager manager(&config, std::move(backend));
+
+    manager.setProxy(true);
+    QCOMPARE(backendPtr->manualCalls, 1);
+
+    // 模拟系统代理被其他程序/用户关闭，守卫应在下一轮询周期内自动恢复。
+    backendPtr->currentStatus = sparkle::platform::ProxyStatus::Disabled;
+    QTest::qWait(5500);
+
+    QCOMPARE(backendPtr->manualCalls, 2);
+    QVERIFY(manager.isProxyEnabled());
   }
 
 private:

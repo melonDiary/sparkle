@@ -77,6 +77,7 @@ private:
   ContextPtr context_;
   JSValue module_ = JS_UNDEFINED;
   qint64 deadlineMs_ = 0;
+  bool jsInFlight_ = false;
   bool loaded_ = false;
 };
 

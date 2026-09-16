@@ -10,6 +10,7 @@
 #include "core_manager.h"
 #include "log_manager.h"
 #include "mihomo_api_client.h"
+#include "quickjs_raii.h"
 #include "runtime_config_factory.h"
 
 #include <nlohmann/json.hpp>
@@ -26,6 +27,18 @@ JSValue nativeAdd(JSContext* ctx, JSValueConst, int argc, JSValueConst* argv) {
     return JS_EXCEPTION;
   }
   return JS_NewInt32(ctx, left + right);
+}
+
+// 在 JS 执行期间再次进入同一个引擎：重入守卫应抛出 ScriptError 而非破坏 Runtime。
+JSValue nativeReenter(JSContext* ctx, JSValueConst, int, JSValueConst*) {
+  auto* engine = static_cast<ScriptEngine*>(JS_GetContextOpaque(ctx));
+  bool rejected = false;
+  try {
+    engine->invokeFunction("doesNotMatter");
+  } catch (const ScriptError&) {
+    rejected = true;
+  }
+  return JS_NewBool(ctx, rejected);
 }
 
 struct ExampleClass {
@@ -67,6 +80,41 @@ private slots:
 
     QCOMPARE(engine.evaluate("typeof ExampleClass"), std::string("\"function\""));
     QCOMPARE(engine.evaluate("new ExampleClass() instanceof ExampleClass"), std::string("true"));
+  }
+
+  void reentrantExecutionIsRejected() {
+    ScriptEngine engine;
+    QVERIFY(engine.initialize());
+    engine.registerFunction("nativeReenter", &nativeReenter);
+    // 外层 evaluate 进入 JS 后，nativeReenter 再次 invokeFunction 应被重入守卫拒绝。
+    QCOMPARE(engine.evaluate("nativeReenter()"), std::string("true"));
+  }
+
+  void jsValueRaiiSmoke() {
+    JSRuntime* rt = JS_NewRuntime();
+    QVERIFY(rt != nullptr);
+    JSContext* ctx = JS_NewContext(rt);
+    QVERIFY(ctx != nullptr);
+
+    {
+      JSValuePtr object(ctx, JS_NewObject(ctx));
+      QVERIFY(JS_IsObject(object.get()));
+      // move 语义：搬空源对象，避免二次释放。
+      JSValuePtr moved = std::move(object);
+      QVERIFY(JS_IsObject(moved.get()));
+      QVERIFY(JS_IsUndefined(object.get()));
+    }
+
+    {
+      JSValuePtr owned(ctx, JS_NewStringLen(ctx, "abc", 3));
+      JSValue released = owned.release();
+      QVERIFY(JS_IsUndefined(owned.get()));  // release 后不再持有
+      QVERIFY(JS_IsString(released));
+      JS_FreeValue(ctx, released);           // 交还后手动释放一次，验证无双重释放
+    }
+
+    JS_FreeContext(ctx);
+    JS_FreeRuntime(rt);
   }
 
   void exceptionsAreConvertedAndReported() {

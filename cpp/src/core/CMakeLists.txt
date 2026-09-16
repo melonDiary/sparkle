@@ -5,6 +5,7 @@ add_library(sparkle_core STATIC
   log_manager.h log_manager.cpp
   json_yaml.h yaml_store.h
   config_manager.h config_manager.cpp
+  subscription_manager.h subscription_manager.cpp
   runtime_config_factory.h runtime_config_factory.cpp
   core_process_controller.h core_process_controller.cpp
   http_client.h http_client.cpp
@@ -19,6 +20,7 @@ add_library(sparkle_core STATIC
   script_engine.h script_engine.cpp
   IPlugin.h PluginSandbox.h PluginSandbox.cpp plugin_sandbox.h
   MITMRequest.h MITMResponse.h MITMManager.h MITMManager.cpp
+  MITMCertificateAuthority.h MITMCertificateAuthority.cpp
   PluginManager.h PluginManager.cpp plugin_manager.h
   single_instance.h single_instance.cpp
 )

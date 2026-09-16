@@ -9,6 +9,7 @@ endif()
 
 add_library(sparkle_platform STATIC
   system_proxy.h
+  system_integration.h system_integration.cpp
   ${SPARKLE_PLATFORM_SRC}
 )
 

@@ -358,6 +358,57 @@ void MihomoApiClient::unfixProxy(
                 });
 }
 
+void MihomoApiClient::testDelay(const QString& proxy, const std::function<void(int)>& onDone,
+                                const std::function<void(const QString&)>& onError) {
+  http_.setEndpoint(endpoint(), serviceMode_);
+  http_.setSecret(secret());
+  // Mihomo 延迟测试端点：GET /proxies/{name}/delay?timeout=5000&url=<测速地址>。
+  const QString path = QStringLiteral("/proxies/") + encodedPathPart(proxy) +
+                       QStringLiteral("/delay?timeout=5000&url=") +
+                       encodedPathPart(QStringLiteral("http://www.gstatic.com/generate_204"));
+  http_.get(path, [onDone, onError](const HttpResult& res) {
+    if (!res.ok) {
+      if (onError) onError(controllerError(res));
+      return;
+    }
+    try {
+      const json parsed = json::parse(res.body.toStdString());
+      if (onDone) onDone(parsed.value("delay", -1));
+    } catch (...) {
+      if (onError) onError(QStringLiteral("延迟测试结果解析失败"));
+    }
+  });
+}
+
+void MihomoApiClient::closeConnection(const QString& id, const std::function<void()>& onDone,
+                                      const std::function<void(const QString&)>& onError) {
+  http_.setEndpoint(endpoint(), serviceMode_);
+  http_.setSecret(secret());
+  http_.request(QStringLiteral("DELETE"),
+                QStringLiteral("/connections/") + encodedPathPart(id), QByteArray(),
+                [onDone, onError](const HttpResult& res) {
+                  if (!res.ok) {
+                    if (onError) onError(controllerError(res));
+                    return;
+                  }
+                  if (onDone) onDone();
+                });
+}
+
+void MihomoApiClient::closeAllConnections(const std::function<void()>& onDone,
+                                          const std::function<void(const QString&)>& onError) {
+  http_.setEndpoint(endpoint(), serviceMode_);
+  http_.setSecret(secret());
+  http_.request(QStringLiteral("DELETE"), QStringLiteral("/connections"), QByteArray(),
+                [onDone, onError](const HttpResult& res) {
+                  if (!res.ok) {
+                    if (onError) onError(controllerError(res));
+                    return;
+                  }
+                  if (onDone) onDone();
+                });
+}
+
 void MihomoApiClient::fetchVersion(
     const std::function<void(const ControllerVersion&)>& onDone) {
   http_.setEndpoint(endpoint(), serviceMode_);

@@ -10,13 +10,14 @@ namespace sparkle::platform {
 enum class ProxyStatus { Disabled, Manual, Auto };
 
 // 平台无关系统代理后端（对应原 sys/sysproxy.ts + sysproxy-go 职责）。
+// 写操作返回是否成功：核心层据此如实发布状态、失败时回滚，而非无条件乐观上报。
 class ISystemProxy {
 public:
   virtual ~ISystemProxy() = default;
-  virtual void setManualProxy(const QString& host, unsigned short port,
+  virtual bool setManualProxy(const QString& host, unsigned short port,
                               const QStringList& bypass) = 0;
-  virtual void setAutoProxy(const QUrl& pacUrl) = 0;
-  virtual void clearProxy() = 0;
+  virtual bool setAutoProxy(const QUrl& pacUrl) = 0;
+  virtual bool clearProxy() = 0;
   virtual ProxyStatus status() = 0;
   virtual void setGuardEnabled(bool enabled, bool notify) = 0; // P2
 };

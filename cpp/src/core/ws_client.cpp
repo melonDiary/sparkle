@@ -299,7 +299,12 @@ void WsClient::deliver(const QByteArray& payload) {
 }
 
 void WsClient::onDisconnected() {
-  transport_.reset();
+  // 本槽由 transport 的 closed 信号触发（其底层 socket 正在 emit），不能在信号栈内
+  // 同步 delete transport（delete-sender-during-signal → use-after-free）。先断开再延迟释放。
+  if (transport_) {
+    transport_->disconnect(this);
+    transport_.release()->deleteLater();
+  }
   handshakeDone_ = false;
   if (stopRequested_) return;
   emit disconnected(QStringLiteral("transport closed"));
@@ -310,7 +315,11 @@ void WsClient::onError() {
   // 仅在"从未建立过连接"（server not found / connect refused）时在此重连；
   // 已建立连接之后的断链统一由 disconnected 驱动，避免重复计数。
   if (!everConnected_ && !stopRequested_) {
-    transport_.reset();
+    // 同 onDisconnected：信号栈内不得同步 delete transport。
+    if (transport_) {
+      transport_->disconnect(this);
+      transport_.release()->deleteLater();
+    }
     handshakeDone_ = false;
     scheduleReconnect();
   }
