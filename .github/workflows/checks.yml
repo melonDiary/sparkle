@@ -1,4 +1,4 @@
-name: Lint
+name: Checks
 
 on:
   push:
@@ -14,13 +14,13 @@ permissions:
   contents: read
 
 concurrency:
-  group: lint-${{ github.ref }}
+  group: checks-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
-  lint:
+  checks:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 15
 
     steps:
       - name: Checkout
@@ -37,10 +37,18 @@ jobs:
           node-version: 25
           cache: pnpm
 
-      # Lint only needs the JS toolchain: skip the electron download and the
-      # native rebuild performed by the postinstall scripts.
+      # None of these checks need the Electron binary or the native rebuild run
+      # by the postinstall scripts. Note that requiring 'electron' at runtime
+      # triggers a binary download, so a check that does that would need the
+      # scripts enabled here.
       - name: Install Dependencies
         run: pnpm install --frozen-lockfile --ignore-scripts
 
       - name: Lint
         run: pnpm lint:check
+
+      - name: Typecheck
+        run: pnpm typecheck
+
+      - name: Test
+        run: pnpm test
