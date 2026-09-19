@@ -70,7 +70,34 @@ function isSameLog(left: MihomoLogEntry, right: MihomoLogEntry): boolean {
   )
 }
 
+/**
+ * Live logs arrive in ascending `seq` order, which is the hot path. Detecting that
+ * lets the common case append directly instead of rebuilding two maps and
+ * re-sorting every entry on each flush.
+ */
+function appendLogsIfOrdered(
+  current: MihomoLogEntry[],
+  incoming: MihomoIncomingLog[]
+): MihomoLogEntry[] | undefined {
+  const lastSeq = current[current.length - 1]?.seq
+  if (typeof lastSeq !== 'number') return undefined
+
+  const appended = [...current]
+  let previousSeq = lastSeq
+
+  for (const log of incoming) {
+    if (typeof log.seq !== 'number' || log.seq <= previousSeq) return undefined
+    previousSeq = log.seq
+    appended.push(normalizeLog(log))
+  }
+
+  return trimLogs(appended)
+}
+
 function mergeLogs(current: MihomoLogEntry[], incoming: MihomoIncomingLog[]): MihomoLogEntry[] {
+  const appended = appendLogsIfOrdered(current, incoming)
+  if (appended) return appended
+
   const withSeq = new Map<number, MihomoLogEntry>()
   const withoutSeq = new Map<string, MihomoLogEntry>()
 

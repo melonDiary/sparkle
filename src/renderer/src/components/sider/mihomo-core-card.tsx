@@ -1,5 +1,5 @@
 import { Button, Card, CardBody, CardFooter, Tooltip } from '@heroui/react'
-import { calcTraffic } from '@renderer/utils/calc'
+import { calcTraffic } from '../../../../shared/utils/calc'
 import { mihomoVersion, restartCore } from '@renderer/utils/ipc'
 import React, { useEffect, useState } from 'react'
 import { IoMdRefresh } from 'react-icons/io'
@@ -21,7 +21,11 @@ const MihomoCoreCard: React.FC<Props> = (props) => {
   const { appConfig } = useAppConfig()
   const { iconOnly } = props
   const { mihomoCoreCardStatus = 'col-span-2', disableAnimation = false } = appConfig || {}
-  const { data: version, error: versionError, mutate } = useSWR('mihomoVersion', mihomoVersion, {
+  const {
+    data: version,
+    error: versionError,
+    mutate
+  } = useSWR('mihomoVersion', mihomoVersion, {
     errorRetryInterval: 1000,
     errorRetryCount: 5
   })

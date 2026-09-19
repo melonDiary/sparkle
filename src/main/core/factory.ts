@@ -19,14 +19,20 @@ import { parseYaml, stringifyYaml } from '../utils/yaml'
 import { copyFile, mkdir, readdir, writeFile } from 'fs/promises'
 import { deepMerge } from '../utils/merge'
 import vm from 'vm'
-import { existsSync, writeFileSync } from 'fs'
+import { existsSync } from 'fs'
 import path from 'path'
 
-let runtimeConfigStr: string,
-  rawProfileStr: string,
-  currentProfileStr: string,
-  overrideProfileStr: string,
-  runtimeConfig: MihomoConfig
+// How many buffered override log lines to accumulate before flushing to disk.
+const overrideLogFlushLines = 200
+
+// These values only exist after the first `generateProfile()` run. They are
+// typed as possibly undefined so callers cannot treat an uninitialized runtime
+// config as a valid one.
+let runtimeConfigStr: string | undefined,
+  rawProfileStr: string | undefined,
+  currentProfileStr: string | undefined,
+  overrideProfileStr: string | undefined,
+  runtimeConfig: MihomoConfig | undefined
 
 export async function generateProfile(): Promise<void> {
   const [profileConfig, appConfig, controledMihomoConfig] = await Promise.all([
@@ -50,7 +56,7 @@ export async function generateProfile(): Promise<void> {
   const currentProfile = await overrideProfile(current, currentProfileConfig)
   overrideProfileStr = stringifyYaml(currentProfile)
 
-  const configToMerge = JSON.parse(JSON.stringify(controledMihomoConfig))
+  const configToMerge = structuredClone(controledMihomoConfig)
   if (!controlDns) {
     delete configToMerge.dns
     delete configToMerge.hosts
@@ -59,7 +65,7 @@ export async function generateProfile(): Promise<void> {
     delete configToMerge.sniffer
   }
 
-  const profile = deepMerge(JSON.parse(JSON.stringify(currentProfile)), configToMerge)
+  const profile = deepMerge(structuredClone(currentProfile), configToMerge)
   restoreUiControlledFields(profile, uiControl)
 
   await cleanProfile(profile, controlDns, controlSniff)
@@ -474,11 +480,26 @@ async function runOverrideScript(
   script: string,
   item: OverrideItem
 ): Promise<MihomoConfig> {
-  const log = (type: string, data: string, flag = 'a'): void => {
-    writeFileSync(overridePath(item.id, 'log'), `[${type}] ${data}\n`, {
-      encoding: 'utf-8',
-      flag
-    })
+  // Scripts write their log through the sandboxed `console`, which used to open
+  // and write the file once per line. Buffer the lines instead and flush them
+  // asynchronously, keeping only one write in flight at a time.
+  const overrideLogPath = overridePath(item.id, 'log')
+  const logBuffer: string[] = []
+  let logWriteChain: Promise<void> = Promise.resolve()
+  const flushLog = (flag: 'a' | 'w'): Promise<void> => {
+    if (logBuffer.length === 0) return logWriteChain
+    const content = logBuffer.join('')
+    logBuffer.length = 0
+    logWriteChain = logWriteChain
+      .then(() => writeFile(overrideLogPath, content, { encoding: 'utf-8', flag }))
+      .catch(() => {})
+    return logWriteChain
+  }
+  const log = (type: string, data: string, flag: 'a' | 'w' = 'a'): void => {
+    logBuffer.push(`[${type}] ${data}\n`)
+    if (flag === 'w' || logBuffer.length >= overrideLogFlushLines) {
+      void flushLog(flag)
+    }
   }
   try {
     const b64d = (str: string): string => Buffer.from(str, 'base64').toString('utf-8')
@@ -513,9 +534,11 @@ async function runOverrideScript(
       throw new Error('脚本返回值必须是对象')
     }
     log('info', '脚本执行成功')
+    await flushLog('a')
     return newProfile
   } catch (e) {
     log('exception', `脚本执行失败：${e}`)
+    await flushLog('a')
     return profile
   }
 }
@@ -531,22 +554,22 @@ function format(data: unknown): string {
   }
 }
 
-export async function getRuntimeConfigStr(): Promise<string> {
-  return runtimeConfigStr
+export function getRuntimeConfigStr(): string {
+  return runtimeConfigStr ?? ''
 }
 
-export async function getRawProfileStr(): Promise<string> {
-  return rawProfileStr
+export function getRawProfileStr(): string {
+  return rawProfileStr ?? ''
 }
 
-export async function getCurrentProfileStr(): Promise<string> {
-  return currentProfileStr
+export function getCurrentProfileStr(): string {
+  return currentProfileStr ?? ''
 }
 
-export async function getOverrideProfileStr(): Promise<string> {
-  return overrideProfileStr
+export function getOverrideProfileStr(): string {
+  return overrideProfileStr ?? ''
 }
 
-export async function getRuntimeConfig(): Promise<MihomoConfig> {
+export function getRuntimeConfig(): MihomoConfig | undefined {
   return runtimeConfig
 }

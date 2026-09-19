@@ -73,19 +73,53 @@ function FindProxyForURL(url, host) {
 export function findAvailablePort(startPort: number): Promise<number> {
   return new Promise((resolve, reject) => {
     const server = net.createServer()
-    server.on('error', (err) => {
-      if (startPort <= 65535) {
+    // `once` keeps each probe's listener from outliving its own attempt: a failed
+    // bind either moves on to the next port or rejects at the top of the range.
+    server.once('error', (error) => {
+      server.close()
+      if (startPort < 65535) {
         resolve(findAvailablePort(startPort + 1))
       } else {
-        reject(err)
+        reject(error)
       }
     })
-    server.on('listening', () => {
+    server.once('listening', () => {
       server.close(() => {
         resolve(startPort)
       })
     })
     server.listen(startPort, '127.0.0.1')
+  })
+}
+
+/**
+ * A binding failure must reach the caller instead of surfacing as an unhandled
+ * 'error' event, which would take down the main process. The permanent logger is
+ * attached first so errors after a successful bind stay handled as well.
+ */
+async function listenServer(
+  server: http.Server,
+  port: number,
+  host: string,
+  label: string
+): Promise<void> {
+  server.on('error', (error) => {
+    void appendAppLog(`[Server]: ${label} error, ${error}\n`).catch(() => {})
+  })
+
+  await new Promise<void>((resolve, reject) => {
+    const onError = (error: Error): void => {
+      server.off('listening', onListening)
+      reject(error)
+    }
+    const onListening = (): void => {
+      server.off('error', onError)
+      resolve()
+    }
+
+    server.once('error', onError)
+    server.once('listening', onListening)
+    server.listen(port, host)
   })
 }
 
@@ -103,12 +137,11 @@ export async function startPacServer(): Promise<void> {
   const { 'mixed-port': port = 7890 } = await getControledMihomoConfig()
   script = script.replaceAll('%mixed-port%', port.toString())
   pacPort = await findAvailablePort(10000)
-  pacServer = http
-    .createServer(async (_req, res) => {
-      res.writeHead(200, { 'Content-Type': 'application/x-ns-proxy-autoconfig' })
-      res.end(script)
-    })
-    .listen(pacPort, host)
+  pacServer = http.createServer((_req, res) => {
+    res.writeHead(200, { 'Content-Type': 'application/x-ns-proxy-autoconfig' })
+    res.end(script)
+  })
+  await listenServer(pacServer, pacPort, host, 'PAC')
 }
 
 export async function stopPacServer(): Promise<void> {
@@ -131,7 +164,8 @@ export async function startSubStoreFrontendServer(): Promise<void> {
   app.use((_req, res) => {
     res.sendFile(path.join(frontendDir, 'index.html'))
   })
-  subStoreFrontendServer = app.listen(subStoreFrontendPort, subStoreHost)
+  subStoreFrontendServer = http.createServer(app)
+  await listenServer(subStoreFrontendServer, subStoreFrontendPort, subStoreHost, 'Sub-Store 前端')
 }
 
 export async function stopSubStoreFrontendServer(): Promise<void> {
@@ -181,7 +215,6 @@ export async function startSubStoreBackendServer(): Promise<void> {
       SUB_STORE_MMDB_COUNTRY_PATH: path.join(mihomoWorkDir(), 'country.mmdb'),
       SUB_STORE_MMDB_ASN_PATH: path.join(mihomoWorkDir(), 'ASN.mmdb')
     }
-    subStorePort = await findAvailablePort(38324)
     subStoreBackendWorker = new Worker(subStoreBackendPath(), {
       env: useProxyInSubStore
         ? {
@@ -198,9 +231,9 @@ export async function startSubStoreBackendServer(): Promise<void> {
     })
     worker.on('exit', (code) => {
       if (subStoreBackendWorker === worker && code !== 0) {
-        void appendAppLog(
-          `[SubStore]: backend worker exited unexpectedly, code: ${code}\n`
-        ).catch(() => {})
+        void appendAppLog(`[SubStore]: backend worker exited unexpectedly, code: ${code}\n`).catch(
+          () => {}
+        )
       }
     })
     worker.stdout.pipe(stdout)
@@ -259,7 +292,7 @@ export async function downloadSubStore(): Promise<void> {
     // 清理临时目录
     await rm(tempDir, { recursive: true })
   } catch (error) {
-    console.error('下载 Sub-Store 文件失败：', error)
+    await appendAppLog(`[SubStore]: 下载 Sub-Store 文件失败，${error}\n`).catch(() => {})
     throw error
   }
 }

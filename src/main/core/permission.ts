@@ -1,31 +1,10 @@
-import { execFile } from 'child_process'
-import { promisify } from 'util'
-import { mihomoCorePath } from '../utils/dirs'
-import { checkCorePermissionPathSync, hasSetuidPermission } from './permission-check'
+import { invalidateDirCache, mihomoCorePath } from '../utils/dirs'
+import { execFileAsync } from '../utils/exec'
+import { checkCorePermissionPathSync } from './permission-check'
 import { createElevateTask } from '../sys/misc'
+import { UserCancelledError, isUserCancelledError } from '../../shared/utils/user-cancelled'
 
 type CoreName = 'mihomo' | 'mihomo-alpha'
-
-class UserCancelledError extends Error {
-  constructor(message = '用户取消操作') {
-    super(message)
-    this.name = 'UserCancelledError'
-  }
-}
-
-function isUserCancelledError(error: unknown): boolean {
-  if (error instanceof UserCancelledError) {
-    return true
-  }
-  const errorMsg = error instanceof Error ? error.message : String(error)
-  return (
-    errorMsg.includes('用户已取消') ||
-    errorMsg.includes('User canceled') ||
-    errorMsg.includes('(-128)') ||
-    errorMsg.includes('user cancelled') ||
-    errorMsg.includes('dismissed')
-  )
-}
 
 export async function manualGrantCorePermition(cores?: CoreName[]): Promise<void> {
   if (process.platform === 'win32') {
@@ -40,8 +19,6 @@ export async function manualGrantCorePermition(cores?: CoreName[]): Promise<void
     return
   }
 
-  const execFilePromise = promisify(execFile)
-
   const grantPermission = async (coreName: CoreName): Promise<void> => {
     const corePath = mihomoCorePath(coreName)
     try {
@@ -49,10 +26,10 @@ export async function manualGrantCorePermition(cores?: CoreName[]): Promise<void
         const escapedPath = corePath.replace(/"/g, '\\"')
         const shell = `chown root:admin \\"${escapedPath}\\" && chmod +sx \\"${escapedPath}\\"`
         const command = `do shell script "${shell}" with administrator privileges`
-        await execFilePromise('osascript', ['-e', command])
+        await execFileAsync('osascript', ['-e', command])
       }
       if (process.platform === 'linux') {
-        await execFilePromise('pkexec', [
+        await execFileAsync('pkexec', [
           'bash',
           '-c',
           `chown root:root "${corePath}" && chmod +sx "${corePath}"`
@@ -68,40 +45,31 @@ export async function manualGrantCorePermition(cores?: CoreName[]): Promise<void
 
   const targetCores = cores || ['mihomo', 'mihomo-alpha']
   await Promise.all(targetCores.map((core) => grantPermission(core)))
-}
-
-export function checkCorePermissionSync(coreName: CoreName): boolean {
-  return checkCorePermissionPathSync(mihomoCorePath(coreName))
+  // The setuid bit changes which controller socket the app targets.
+  invalidateDirCache()
 }
 
 export async function checkCorePermission(): Promise<{ mihomo: boolean; 'mihomo-alpha': boolean }> {
-  const execFilePromise = promisify(execFile)
-
-  const checkPermission = async (coreName: CoreName): Promise<boolean> => {
+  // Resolve the setuid bit with the same stat-based probe the controller socket
+  // path already uses, instead of shelling out to `ls` and parsing its permission
+  // string (which also reported a setgid-only file as permitted).
+  const checkPermission = (coreName: CoreName): boolean => {
     try {
-      const corePath = mihomoCorePath(coreName)
-      const { stdout } = await execFilePromise('ls', ['-l', corePath])
-      const permissions = stdout.trim().split(/\s+/)[0]
-      return hasSetuidPermission(permissions)
-    } catch (error) {
+      return checkCorePermissionPathSync(mihomoCorePath(coreName))
+    } catch {
+      // An unresolvable path (for example `system` without a configured path)
+      // counts as "not permitted" rather than an error.
       return false
     }
   }
 
-  const [mihomoPermission, mihomoAlphaPermission] = await Promise.all([
-    checkPermission('mihomo'),
-    checkPermission('mihomo-alpha')
-  ])
-
   return {
-    mihomo: mihomoPermission,
-    'mihomo-alpha': mihomoAlphaPermission
+    mihomo: checkPermission('mihomo'),
+    'mihomo-alpha': checkPermission('mihomo-alpha')
   }
 }
 
 export async function revokeCorePermission(cores?: CoreName[]): Promise<void> {
-  const execFilePromise = promisify(execFile)
-
   const revokePermission = async (coreName: CoreName): Promise<void> => {
     const corePath = mihomoCorePath(coreName)
     try {
@@ -109,10 +77,10 @@ export async function revokeCorePermission(cores?: CoreName[]): Promise<void> {
         const escapedPath = corePath.replace(/"/g, '\\"')
         const shell = `chmod a-s \\"${escapedPath}\\"`
         const command = `do shell script "${shell}" with administrator privileges`
-        await execFilePromise('osascript', ['-e', command])
+        await execFileAsync('osascript', ['-e', command])
       }
       if (process.platform === 'linux') {
-        await execFilePromise('pkexec', ['bash', '-c', `chmod a-s "${corePath}"`])
+        await execFileAsync('pkexec', ['bash', '-c', `chmod a-s "${corePath}"`])
       }
     } catch (error) {
       if (isUserCancelledError(error)) {
@@ -124,4 +92,6 @@ export async function revokeCorePermission(cores?: CoreName[]): Promise<void> {
 
   const targetCores = cores || ['mihomo', 'mihomo-alpha']
   await Promise.all(targetCores.map((core) => revokePermission(core)))
+  // The setuid bit changes which controller socket the app targets.
+  invalidateDirCache()
 }

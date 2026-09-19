@@ -341,8 +341,8 @@ export function getOverrideProfileStr(): Promise<string> {
   return invoke<string>('getOverrideProfileStr')
 }
 
-export function getRuntimeConfig(): Promise<MihomoConfig> {
-  return invoke<MihomoConfig>('getRuntimeConfig')
+export function getRuntimeConfig(): Promise<MihomoConfig | undefined> {
+  return invoke<MihomoConfig | undefined>('getRuntimeConfig')
 }
 
 export function checkUpdate(): Promise<AppVersion | undefined> {

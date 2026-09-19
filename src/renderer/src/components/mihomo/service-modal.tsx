@@ -3,6 +3,8 @@ import { Button, Spinner, Card, CardBody, Chip, Divider } from '@heroui/react'
 import { Modal } from '@heroui-v3/react'
 import { serviceStatus, testServiceConnection } from '@renderer/utils/ipc'
 import { notify } from '@renderer/utils/notification'
+import { delay } from '../../../../shared/utils/delay'
+import { isUserCancelledError } from '../../../../shared/utils/user-cancelled'
 
 interface Props {
   onChange: (open: boolean) => void
@@ -15,17 +17,6 @@ interface Props {
 
 type ServiceStatusType = Awaited<ReturnType<typeof serviceStatus>>
 type ConnectionStatusType = 'connected' | 'disconnected' | 'checking' | 'unknown'
-
-function isUserCancelledError(error: unknown): boolean {
-  const errorMsg = String(error)
-  return errorMsg.includes('用户取消操作') || errorMsg.includes('UserCancelledError')
-}
-
-function delay(ms: number): Promise<void> {
-  return new Promise((resolve) => {
-    setTimeout(resolve, ms)
-  })
-}
 
 async function readServiceStatus(): Promise<ServiceStatusType> {
   try {

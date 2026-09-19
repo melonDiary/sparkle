@@ -11,7 +11,7 @@ import {
   Tooltip
 } from '@heroui/react'
 import { Meter } from '@heroui-v3/react'
-import { calcTraffic } from '@renderer/utils/calc'
+import { calcTraffic } from '../../../../shared/utils/calc'
 import { IoMdMore, IoMdRefresh } from 'react-icons/io'
 import dayjs from 'dayjs'
 import React, { Key, useEffect, useMemo, useState } from 'react'

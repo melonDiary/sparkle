@@ -1,3 +1,7 @@
+/**
+ * Byte formatting shared by the tray tooltip (main) and the traffic widgets
+ * (renderer). It used to exist twice and the copies had already diverged.
+ */
 export function calcTraffic(byte: number): string {
   if (byte < 1024) return `${formatNumString(byte)} B`
   byte /= 1024
@@ -28,15 +32,4 @@ function formatNumString(num: number): string {
     str = Math.round(num).toString()
     return str
   }
-}
-
-export function calcPercent(
-  upload: number | undefined,
-  download: number | undefined,
-  total: number | undefined
-): number {
-  if (upload === undefined || download === undefined || total === undefined) {
-    return 100
-  }
-  return Math.round(((upload + download) / total) * 100)
 }

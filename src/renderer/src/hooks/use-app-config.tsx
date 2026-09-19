@@ -17,23 +17,28 @@ export const AppConfigProvider: React.FC<{ children: ReactNode }> = ({ children 
 
   const patchAppConfig = async (value: Partial<AppConfig>): Promise<AppConfig | undefined> => {
     try {
+      // `patch` already returns the persisted config, so it can be written
+      // straight into the SWR cache. Revalidating here would immediately
+      // overwrite the fresh value with another round-trip.
       const nextConfig = await patch(value)
-      mutateAppConfig(nextConfig, false)
+      mutateAppConfig(nextConfig, { revalidate: false })
       return nextConfig
     } catch (e) {
       notify(e, { variant: 'danger' })
-      return undefined
-    } finally {
       mutateAppConfig()
+      return undefined
     }
   }
 
   React.useEffect(() => {
-    window.electron.ipcRenderer.on(IPC_EVENTS.APP_CONFIG_UPDATED, () => {
-      mutateAppConfig()
-    })
+    const unsubscribeAppConfigUpdated = window.electron.ipcRenderer.on(
+      IPC_EVENTS.APP_CONFIG_UPDATED,
+      () => {
+        mutateAppConfig()
+      }
+    )
     return (): void => {
-      window.electron.ipcRenderer.removeAllListeners(IPC_EVENTS.APP_CONFIG_UPDATED)
+      unsubscribeAppConfigUpdated()
     }
   }, [])
 

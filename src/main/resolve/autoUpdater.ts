@@ -10,7 +10,8 @@ import { exec, spawn } from 'child_process'
 import { promisify } from 'util'
 import { createHash } from 'crypto'
 import os from 'os'
-import { setNotQuitDialog, mainWindow } from '..'
+import { setNotQuitDialog } from '../resolve/appLifecycle'
+import { getMainWindow } from './window-ref'
 import { triggerSysProxy } from '../sys/sysproxy'
 import { serviceStatus, stopService } from '../service/manager'
 import {
@@ -154,7 +155,7 @@ export async function downloadAndInstallUpdate(version: string, tag?: string): P
   }
 
   try {
-    mainWindow?.webContents.send(IPC_EVENTS.UPDATE_STATUS, {
+    getMainWindow()?.webContents.send(IPC_EVENTS.UPDATE_STATUS, {
       downloading: true,
       progress: 0
     })
@@ -191,7 +192,7 @@ export async function downloadAndInstallUpdate(version: string, tag?: string): P
           const percentCompleted = Math.round(
             (progressEvent.loaded * 100) / (progressEvent.total || 1)
           )
-          mainWindow?.webContents.send(IPC_EVENTS.UPDATE_STATUS, {
+          getMainWindow()?.webContents.send(IPC_EVENTS.UPDATE_STATUS, {
             downloading: true,
             progress: percentCompleted
           })
@@ -209,7 +210,7 @@ export async function downloadAndInstallUpdate(version: string, tag?: string): P
       throw new Error(`SHA-256 校验失败：本地哈希 ${localHash} 与预期 ${expectedHash} 不符`)
     }
 
-    mainWindow?.webContents.send(IPC_EVENTS.UPDATE_STATUS, {
+    getMainWindow()?.webContents.send(IPC_EVENTS.UPDATE_STATUS, {
       downloading: false,
       progress: 100
     })
@@ -269,14 +270,14 @@ export async function downloadAndInstallUpdate(version: string, tag?: string): P
     }
     await rm(path.join(dataDir(), file), { force: true })
     if (axios.isCancel(e)) {
-      mainWindow?.webContents.send(IPC_EVENTS.UPDATE_STATUS, {
+      getMainWindow()?.webContents.send(IPC_EVENTS.UPDATE_STATUS, {
         downloading: false,
         progress: 0,
         error: '下载已取消'
       })
       return
     } else {
-      mainWindow?.webContents.send(IPC_EVENTS.UPDATE_STATUS, {
+      getMainWindow()?.webContents.send(IPC_EVENTS.UPDATE_STATUS, {
         downloading: false,
         progress: 0,
         error: e instanceof Error ? e.message : '下载失败'

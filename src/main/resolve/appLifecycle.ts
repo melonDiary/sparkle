@@ -1,8 +1,9 @@
-import { app, ipcMain, powerMonitor, type BrowserWindow, type IpcMainEvent } from 'electron'
+import { app, powerMonitor, type BrowserWindow } from 'electron'
 import { stopCore } from '../core/manager'
 import { stopNetworkDetection } from '../core/network'
 import { disableSysProxySync, triggerSysProxy } from '../sys/sysproxy'
 import { appendAppLog } from '../utils/log'
+import { waitForIpcConfirmation } from '../utils/ipc-confirm'
 import { IPC_EVENTS } from '../../shared/ipc'
 
 interface AppQuitLifecycleContext {
@@ -88,22 +89,15 @@ async function cleanupBeforeExit(useRegistry: boolean): Promise<void> {
   ])
 }
 
-function showQuitConfirmDialog(context: AppQuitLifecycleContext): Promise<boolean> {
-  return new Promise((resolve) => {
-    const mainWindow = context.getMainWindow()
-    if (!mainWindow) {
-      resolve(true)
-      return
-    }
+async function showQuitConfirmDialog(context: AppQuitLifecycleContext): Promise<boolean> {
+  if (!context.getMainWindow()) {
+    return true
+  }
 
-    const delay = context.showWindow()
-    setTimeout(() => {
-      context.getMainWindow()?.webContents.send(IPC_EVENTS.SHOW_QUIT_CONFIRM)
-      const handleQuitConfirm = (_event: IpcMainEvent, confirmed: boolean): void => {
-        ipcMain.off(IPC_EVENTS.QUIT_CONFIRM_RESULT, handleQuitConfirm)
-        resolve(confirmed)
-      }
-      ipcMain.once(IPC_EVENTS.QUIT_CONFIRM_RESULT, handleQuitConfirm)
-    }, delay)
+  const delay = context.showWindow()
+  await new Promise<void>((resolve) => {
+    setTimeout(resolve, delay)
   })
+  context.getMainWindow()?.webContents.send(IPC_EVENTS.SHOW_QUIT_CONFIRM)
+  return waitForIpcConfirmation(IPC_EVENTS.QUIT_CONFIRM_RESULT)
 }

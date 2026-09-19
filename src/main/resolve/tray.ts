@@ -16,7 +16,8 @@ import {
   mihomoGroupDelay,
   patchMihomoConfig
 } from '../core/mihomoApi'
-import { mainWindow, setNotQuitDialog, showMainWindow, triggerMainWindow } from '..'
+import { setNotQuitDialog } from './appLifecycle'
+import { getMainWindow, showMainWindow, triggerMainWindow } from './window-ref'
 import {
   app,
   BrowserWindow,
@@ -40,7 +41,6 @@ import { existsSync } from 'fs'
 
 export let tray: Tray | null = null
 export let customTrayWindow: BrowserWindow | null = null
-let trayMenu: Menu | null = null
 let trayIconUpdateListenerRegistered = false
 let updateTrayMenuListenerRegistered = false
 type TrayImage = Electron.NativeImage | string
@@ -214,7 +214,6 @@ export const buildContextMenu = async (): Promise<Menu> => {
     autoCloseConnection,
     proxyInTray = true,
     trayProxyDelayLayout = 'new-line',
-    // useCustomTrayMenu = false,
     triggerSysProxyShortcut = '',
     showFloatingWindowShortcut = '',
     showWindowShortcut = '',
@@ -308,16 +307,6 @@ export const buildContextMenu = async (): Promise<Menu> => {
         await triggerFloatingWindow()
       }
     },
-    // { type: 'separator' },
-    // {
-    //   type: 'checkbox',
-    //   label: '自定义托盘菜单',
-    //   checked: useCustomTrayMenu,
-    //   click: async (item): Promise<void> => {
-    //     await patchAppConfig({ useCustomTrayMenu: item.checked })
-    //     ipcMain.emit(IPC_EVENTS.UPDATE_TRAY_MENU)
-    //   }
-    // },
     { type: 'separator' },
     {
       type: 'checkbox',
@@ -329,7 +318,7 @@ export const buildContextMenu = async (): Promise<Menu> => {
         try {
           await triggerSysProxy(enable, onlyActiveDevice)
           await patchAppConfig({ sysProxy: { enable } })
-          mainWindow?.webContents.send(IPC_EVENTS.APP_CONFIG_UPDATED)
+          getMainWindow()?.webContents.send(IPC_EVENTS.APP_CONFIG_UPDATED)
           floatingWindow?.webContents.send(IPC_EVENTS.APP_CONFIG_UPDATED)
         } catch (e) {
           // ignore
@@ -351,7 +340,7 @@ export const buildContextMenu = async (): Promise<Menu> => {
           } else {
             await patchControledMihomoConfig({ tun: { enable } })
           }
-          mainWindow?.webContents.send(IPC_EVENTS.CONTROLLED_MIHOMO_CONFIG_UPDATED)
+          getMainWindow()?.webContents.send(IPC_EVENTS.CONTROLLED_MIHOMO_CONFIG_UPDATED)
           floatingWindow?.webContents.send(IPC_EVENTS.CONTROLLED_MIHOMO_CONFIG_UPDATED)
           await restartCore()
         } catch {
@@ -375,8 +364,8 @@ export const buildContextMenu = async (): Promise<Menu> => {
           click: async (): Promise<void> => {
             await patchControledMihomoConfig({ mode: 'rule' })
             await patchMihomoConfig({ mode: 'rule' })
-            mainWindow?.webContents.send(IPC_EVENTS.CONTROLLED_MIHOMO_CONFIG_UPDATED)
-            mainWindow?.webContents.send(IPC_EVENTS.GROUPS_UPDATED)
+            getMainWindow()?.webContents.send(IPC_EVENTS.CONTROLLED_MIHOMO_CONFIG_UPDATED)
+            getMainWindow()?.webContents.send(IPC_EVENTS.GROUPS_UPDATED)
             ipcMain.emit(IPC_EVENTS.UPDATE_TRAY_MENU)
           }
         },
@@ -389,8 +378,8 @@ export const buildContextMenu = async (): Promise<Menu> => {
           click: async (): Promise<void> => {
             await patchControledMihomoConfig({ mode: 'global' })
             await patchMihomoConfig({ mode: 'global' })
-            mainWindow?.webContents.send(IPC_EVENTS.CONTROLLED_MIHOMO_CONFIG_UPDATED)
-            mainWindow?.webContents.send(IPC_EVENTS.GROUPS_UPDATED)
+            getMainWindow()?.webContents.send(IPC_EVENTS.CONTROLLED_MIHOMO_CONFIG_UPDATED)
+            getMainWindow()?.webContents.send(IPC_EVENTS.GROUPS_UPDATED)
             ipcMain.emit(IPC_EVENTS.UPDATE_TRAY_MENU)
           }
         },
@@ -403,8 +392,8 @@ export const buildContextMenu = async (): Promise<Menu> => {
           click: async (): Promise<void> => {
             await patchControledMihomoConfig({ mode: 'direct' })
             await patchMihomoConfig({ mode: 'direct' })
-            mainWindow?.webContents.send(IPC_EVENTS.CONTROLLED_MIHOMO_CONFIG_UPDATED)
-            mainWindow?.webContents.send(IPC_EVENTS.GROUPS_UPDATED)
+            getMainWindow()?.webContents.send(IPC_EVENTS.CONTROLLED_MIHOMO_CONFIG_UPDATED)
+            getMainWindow()?.webContents.send(IPC_EVENTS.GROUPS_UPDATED)
             ipcMain.emit(IPC_EVENTS.UPDATE_TRAY_MENU)
           }
         }
@@ -423,7 +412,7 @@ export const buildContextMenu = async (): Promise<Menu> => {
           click: async (): Promise<void> => {
             if (item.id === current) return
             await changeCurrentProfile(item.id)
-            mainWindow?.webContents.send(IPC_EVENTS.PROFILE_CONFIG_UPDATED)
+            getMainWindow()?.webContents.send(IPC_EVENTS.PROFILE_CONFIG_UPDATED)
             ipcMain.emit(IPC_EVENTS.UPDATE_TRAY_MENU)
           }
         }
@@ -522,8 +511,7 @@ export async function createTray(): Promise<void> {
   }
   if (process.platform === 'linux') {
     tray = new Tray(pngIcon)
-    trayMenu = await buildContextMenu()
-    tray.setContextMenu(trayMenu)
+    tray.setContextMenu(await buildContextMenu())
   }
   if (process.platform === 'darwin') {
     tray = new Tray(createDarwinTrayIcon())
@@ -604,7 +592,6 @@ export async function updateTrayIcon(): Promise<void> {
 
 async function updateTrayMenu(): Promise<void> {
   const menu = await buildContextMenu()
-  trayMenu = menu
   tray?.popUpContextMenu(menu) // 弹出菜单
   if (process.platform === 'linux') {
     tray?.setContextMenu(menu)
@@ -666,7 +653,6 @@ export async function closeTrayIcon(): Promise<void> {
     tray.destroy()
   }
   tray = null
-  trayMenu = null
   if (customTrayWindow) {
     customTrayWindow.destroy()
   }

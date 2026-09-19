@@ -23,6 +23,7 @@ import { handleDeepLink } from './resolve/deepLink'
 import { acquireSingleInstance } from './bootstrap/single-instance'
 import { initDeepLinkWiring } from './bootstrap/deep-link-wiring'
 import { initAppQuitLifecycle } from './resolve/appLifecycle'
+import { setMainWindowGetter, setMainWindowActions } from './resolve/window-ref'
 import { showNotification } from './utils/notification'
 import { appendAppLog } from './utils/log'
 import { IPC_EVENTS } from '../shared/ipc'
@@ -31,6 +32,12 @@ export { setNotQuitDialog } from './resolve/appLifecycle'
 
 let quitTimeout: NodeJS.Timeout | null = null
 export let mainWindow: BrowserWindow | null = null
+
+// Submodules must not import `mainWindow` from here: it would close a runtime
+// import cycle back into index.ts. They read through `resolve/window-ref`, and
+// this module (which owns the window variable) keeps the registry in sync.
+setMainWindowGetter(() => mainWindow)
+setMainWindowActions({ showMainWindow, triggerMainWindow, closeMainWindow })
 let isCreatingWindow = false
 let windowShown = false
 let createWindowPromiseResolve: (() => void) | null = null
@@ -122,7 +129,8 @@ ensureWindowsElevatedStartup(syncConfig.corePermissionMode, exitApp)
 
 const gotTheLock = acquireSingleInstance({
   showMainWindow,
-  handleDeepLink: (url) => handleDeepLink(url, { getMainWindow: () => mainWindow, createWindow, showWindow })
+  handleDeepLink: (url) =>
+    handleDeepLink(url, { getMainWindow: () => mainWindow, createWindow, showWindow })
 })
 
 useLinuxCustomRelaunch()

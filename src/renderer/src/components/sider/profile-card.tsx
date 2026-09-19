@@ -2,7 +2,7 @@ import { Button, Card, CardBody, CardFooter, Chip, Tooltip } from '@heroui/react
 import { Meter } from '@heroui-v3/react'
 import { useProfileConfig } from '@renderer/hooks/use-profile-config'
 import { useLocation, useNavigate } from 'react-router-dom'
-import { calcTraffic } from '@renderer/utils/calc'
+import { calcTraffic } from '../../../../shared/utils/calc'
 import { CgLoadbarDoc } from 'react-icons/cg'
 import { IoMdRefresh } from 'react-icons/io'
 import relativeTime from 'dayjs/plugin/relativeTime'

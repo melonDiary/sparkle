@@ -10,8 +10,27 @@ function trimWrap(str: string): string {
   return str
 }
 
+const dangerousMergeKeys = new Set(['__proto__', 'prototype', 'constructor'])
+
+/**
+ * Strip the override markers (`+key`, `key+`, `key!`, `<key>`) so a disguised key
+ * such as `+__proto__` or `<__proto__>` cannot bypass the safety check below.
+ */
+function normalizeMergeKey(key: string): string {
+  return key.replace(/^[+<]+/, '').replace(/[+!>]+$/, '')
+}
+
+// Merged input can come from remote subscriptions and hand-written override files,
+// so prototype-mutating keys must never reach the assignment below.
+function isSafeMergeKey(key: string): boolean {
+  return !dangerousMergeKeys.has(normalizeMergeKey(key))
+}
+
 export function deepMerge<T extends object>(target: T, other: Partial<T>, isOverride?: boolean): T {
   for (const key in other) {
+    if (!Object.prototype.hasOwnProperty.call(other, key)) continue
+    if (!isSafeMergeKey(key)) continue
+
     if (isObject(other[key])) {
       if (key.endsWith('!')) {
         const k = trimWrap(key.slice(0, -1))

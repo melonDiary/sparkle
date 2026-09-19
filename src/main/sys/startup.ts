@@ -32,6 +32,8 @@ export function ensureWindowsElevatedStartup(
       if (!existsSync(path.join(taskDir(), 'sparkle-run.exe'))) {
         throw new Error('sparkle-run.exe not found')
       }
+      // Runs during synchronous bootstrap, immediately before the app exits, so
+      // blocking on the task launch is intentional here.
       execSync('%SystemRoot%\\System32\\schtasks.exe /run /tn sparkle-run')
     } catch (error) {
       let createErrorStr = `${createError}`

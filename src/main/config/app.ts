@@ -6,6 +6,12 @@ import { defaultConfig } from '../utils/template'
 import { readFileSync, existsSync } from 'fs'
 
 let appConfig: AppConfig
+// Mirrors the resolved config so `getAppConfigSync` does not re-read and re-parse
+// config.yaml on every call. Kept in step with the async cache below.
+let appConfigSyncCache: AppConfig | undefined
+// Bumped whenever the cached config object changes, so hot paths can memoize
+// values derived from the config without polling or deep comparisons.
+let appConfigRevision = 0
 let writePromise: Promise<void> = Promise.resolve()
 
 function isValidConfig(config: unknown): config is AppConfig {
@@ -56,9 +62,22 @@ export async function getAppConfig(force = false): Promise<AppConfig> {
     } catch (e) {
       appConfig = defaultConfig
     }
+    appConfigRevision++
   }
-  if (typeof appConfig !== 'object') appConfig = defaultConfig
+  if (typeof appConfig !== 'object') {
+    appConfig = defaultConfig
+    appConfigRevision++
+  }
+  appConfigSyncCache = appConfig
   return appConfig
+}
+
+/**
+ * Monotonic revision of the cached app config. Consumers that memoize values
+ * derived from the config can compare it instead of re-reading the file.
+ */
+export function getAppConfigRevision(): number {
+  return appConfigRevision
 }
 
 export async function patchAppConfig(patch: Partial<AppConfig>): Promise<AppConfig> {
@@ -66,7 +85,9 @@ export async function patchAppConfig(patch: Partial<AppConfig>): Promise<AppConf
   const currentPromise = (async () => {
     await previousPromise
     appConfig = deepMerge(appConfig, patch)
+    appConfigRevision++
     await safeWriteConfig(stringifyYaml(appConfig))
+    appConfigSyncCache = appConfig
   })()
   writePromise = currentPromise.catch(() => {})
   await currentPromise
@@ -74,14 +95,14 @@ export async function patchAppConfig(patch: Partial<AppConfig>): Promise<AppConf
 }
 
 export function getAppConfigSync(): AppConfig {
+  if (appConfigSyncCache) return appConfigSyncCache
+
   try {
     const raw = readFileSync(appConfigPath(), 'utf-8')
     const data = parseYaml<AppConfig>(raw)
-    if (typeof data === 'object' && data !== null) {
-      return data
-    }
-    return defaultConfig
+    appConfigSyncCache = typeof data === 'object' && data !== null ? data : defaultConfig
   } catch (e) {
-    return defaultConfig
+    appConfigSyncCache = defaultConfig
   }
+  return appConfigSyncCache
 }

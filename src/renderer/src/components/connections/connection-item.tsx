@@ -1,8 +1,9 @@
 import { Button, Card, CardFooter, CardHeader, Chip } from '@heroui/react'
 import { Avatar } from '@heroui-v3/react'
-import { calcTraffic } from '@renderer/utils/calc'
+import { calcTraffic } from '../../../../shared/utils/calc'
+import { useRelativeTimeTick } from '@renderer/utils/relative-time'
 import dayjs from 'dayjs'
-import React, { memo, useCallback, useEffect, useMemo, useState } from 'react'
+import React, { memo, useCallback, useMemo } from 'react'
 import { CgClose, CgTrash } from 'react-icons/cg'
 
 interface Props {
@@ -49,15 +50,8 @@ const ConnectionItemComponent: React.FC<Props> = ({
     ]
   )
 
-  const [timeAgo, setTimeAgo] = useState(() => dayjs(info.start).fromNow())
-
-  useEffect(() => {
-    const timer = setInterval(() => {
-      setTimeAgo(dayjs(info.start).fromNow())
-    }, 60000)
-
-    return () => clearInterval(timer)
-  }, [info.start])
+  const timeAgoTick = useRelativeTimeTick()
+  const timeAgo = useMemo(() => dayjs(info.start).fromNow(), [info.start, timeAgoTick])
 
   const uploadTraffic = useMemo(() => calcTraffic(info.upload), [info.upload])
 

@@ -22,7 +22,10 @@ function createFingerprintVerifier(fingerprint: string): (socket: tls.TLSSocket)
   }
 }
 
-function createHttpsAgent(fingerprint: string | undefined, proxyPort: number | undefined): https.Agent {
+function createHttpsAgent(
+  fingerprint: string | undefined,
+  proxyPort: number | undefined
+): https.Agent {
   const agent = new https.Agent({ rejectUnauthorized: !fingerprint })
   if (!fingerprint) return agent
 

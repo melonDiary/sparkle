@@ -9,14 +9,27 @@ import { describeHttpError } from './http'
 /**
  * Guards the axios runtime contracts the main process relies on. Type checking
  * cannot catch a change in interceptor unwrapping or cancellation semantics, so
- * the service API transport is exercised over a real unix socket here.
+ * the service API transport is exercised over a real local socket here.
+ *
+ * The socket form is platform-specific: POSIX listens on a filesystem path,
+ * while Windows rejects a `.sock` path with EACCES and requires a named pipe
+ * under `\\.\pipe\`. Both are valid `socketPath` values for their platform.
  */
-const socketPath = join(tmpdir(), `sparkle-axios-${process.pid}.sock`)
+const isWindows = process.platform === 'win32'
+// `String.raw` keeps the `\\.\pipe\` prefix literal instead of half-escaping it.
+const socketPath = isWindows
+  ? String.raw`\\.\pipe\sparkle-axios-${process.pid}`
+  : join(tmpdir(), `sparkle-axios-${process.pid}.sock`)
+
+/** Named pipes are not filesystem entries, so only POSIX paths are unlinked. */
+function removeSocketPath(): void {
+  if (!isWindows) rmSync(socketPath, { force: true })
+}
 
 let server: Server
 
 beforeAll(async () => {
-  rmSync(socketPath, { force: true })
+  removeSocketPath()
   server = createServer((req, res) => {
     if (req.url === '/ok') {
       res.writeHead(200, { 'Content-Type': 'application/json' })
@@ -35,7 +48,7 @@ afterAll(async () => {
   await new Promise<void>((resolve) => {
     server.close(() => resolve())
   })
-  rmSync(socketPath, { force: true })
+  removeSocketPath()
 })
 
 function createServiceLikeAxios(): AxiosInstance {

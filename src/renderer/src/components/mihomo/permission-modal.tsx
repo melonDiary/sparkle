@@ -10,6 +10,7 @@ import {
 } from '@renderer/utils/ipc'
 import { platform } from '@renderer/utils/init'
 import { notify } from '@renderer/utils/notification'
+import { isUserCancelledError } from '../../../../shared/utils/user-cancelled'
 
 interface Props {
   onChange: (open: boolean) => void
@@ -46,8 +47,7 @@ const PermissionModal: React.FC<Props> = (props) => {
       onChange(false)
     } catch (e) {
       // 忽略用户取消操作的错误
-      const errorMsg = String(e)
-      if (errorMsg.includes('用户取消操作') || errorMsg.includes('UserCancelledError')) {
+      if (isUserCancelledError(e)) {
         // 静默失败，只刷新状态
         await checkPermissions()
         return
@@ -72,8 +72,7 @@ const PermissionModal: React.FC<Props> = (props) => {
       await checkPermissions()
     } catch (e) {
       // 忽略用户取消操作的错误
-      const errorMsg = String(e)
-      if (errorMsg.includes('用户取消操作') || errorMsg.includes('UserCancelledError')) {
+      if (isUserCancelledError(e)) {
         // 静默失败，只刷新状态
         await checkPermissions()
         return

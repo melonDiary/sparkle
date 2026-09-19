@@ -20,7 +20,7 @@ import {
   mihomoGroups
 } from './mihomoApi'
 import { readFile, rm, writeFile } from 'fs/promises'
-import { mainWindow } from '..'
+import { getMainWindow } from '../resolve/window-ref'
 import path from 'path'
 import os from 'os'
 import { existsSync } from 'fs'
@@ -57,6 +57,7 @@ import {
   isUpdaterFinishedLog
 } from './startup-chain'
 import { createServiceCoreRuntime } from './service-core-runtime'
+import { delay } from '../../shared/utils/delay'
 
 const ctlParam = process.platform === 'win32' ? '-ext-ctl-pipe' : '-ext-ctl-unix'
 
@@ -199,12 +200,6 @@ async function mihomoCorePathForCurrentConfig(): Promise<string> {
   return mihomoCorePath(core)
 }
 
-function delay(ms: number): Promise<void> {
-  return new Promise((resolve) => {
-    setTimeout(resolve, ms)
-  })
-}
-
 type ServiceCoreConnectionProbe = {
   reachable: boolean
   running: boolean
@@ -223,8 +218,8 @@ async function startMihomoApiStreams(): Promise<void> {
 async function completeCoreInitialization(logLevel?: LogLevel): Promise<void> {
   const tasks: Promise<unknown>[] = [
     delay(100).then(() => {
-      mainWindow?.webContents.send(IPC_EVENTS.GROUPS_UPDATED)
-      mainWindow?.webContents.send(IPC_EVENTS.RULES_UPDATED)
+      getMainWindow()?.webContents.send(IPC_EVENTS.GROUPS_UPDATED)
+      getMainWindow()?.webContents.send(IPC_EVENTS.RULES_UPDATED)
     }),
     (async () => {
       try {
@@ -255,8 +250,13 @@ async function waitForMihomoReady(): Promise<void> {
   for (let i = 0; i < maxRetries; i++) {
     try {
       await mihomoGroups()
-      break
+      return
     } catch (error) {
+      if (i === maxRetries - 1) {
+        await appendAppLog(
+          `[Manager]: mihomo API not ready after ${maxRetries} probes, continuing, ${error}\n`
+        )
+      }
       await delay(retryInterval)
     }
   }
@@ -386,11 +386,15 @@ async function startCoreInternal(detached = false): Promise<Promise<void>[]> {
   try {
     await appendAppLog('[Manager]: generating runtime profile\n')
     await generateProfile()
-    await appendAppLog(`[Manager]: runtime profile generated, config: ${mihomoWorkConfigPath(diffWorkDir ? current : 'work')}\n`)
+    await appendAppLog(
+      `[Manager]: runtime profile generated, config: ${mihomoWorkConfigPath(diffWorkDir ? current : 'work')}\n`
+    )
     await checkProfile()
     await appendAppLog('[Manager]: runtime profile check passed\n')
   } catch (error) {
-    await appendAppLog(`[Manager]: core preflight failed: ${error instanceof Error ? error.stack || error.message : String(error)}\n`)
+    await appendAppLog(
+      `[Manager]: core preflight failed: ${error instanceof Error ? error.stack || error.message : String(error)}\n`
+    )
     throw error
   }
   let serviceCoreRunning = false
@@ -587,8 +591,14 @@ async function startCoreInternal(detached = false): Promise<Promise<void>[]> {
                 providerTracker.track(logLine)
 
                 if (isTunPermissionError(logLine)) {
-                  patchControledMihomoConfig({ tun: { enable: false } })
-                  mainWindow?.webContents.send(IPC_EVENTS.CONTROLLED_MIHOMO_CONFIG_UPDATED)
+                  // Notify the renderer only after the patch is persisted, so the
+                  // refetch it triggers does not read the stale value. A failure
+                  // here must not reject core startup.
+                  void patchControledMihomoConfig({ tun: { enable: false } })
+                    .then(() => {
+                      getMainWindow()?.webContents.send(IPC_EVENTS.CONTROLLED_MIHOMO_CONFIG_UPDATED)
+                    })
+                    .catch(() => {})
                   ipcMain.emit(IPC_EVENTS.UPDATE_TRAY_MENU)
                   reject('虚拟网卡启动失败，前往内核设置页尝试手动授予内核权限')
                 }
@@ -620,42 +630,6 @@ async function startCoreInternal(detached = false): Promise<Promise<void>[]> {
       })
     })
   }
-
-  /*
-  const waitForCoreReadyByHook = (): Promise<Promise<void>[]> => {
-    if (!hookWaiter) return waitForCoreReadyByLog()
-
-    return new Promise((resolve, reject) => {
-      let resolved = false
-      const resolveReady = async (): Promise<void> => {
-        if (resolved) return
-        resolved = true
-        try {
-          initialized = true
-          await startMihomoApiStreams()
-          resolve([completeCoreInitialization(logLevel)])
-        } catch (error) {
-          reject(error)
-        }
-      }
-
-      child.stdout?.on('data', (data) => {
-        const text = data.toString()
-        handleCoreOutput(text, reject).catch(reject)
-        if (isControllerReadyLog(text)) {
-          void resolveReady()
-        }
-      })
-
-      hookWaiter.promise.then(resolveReady).catch((error) => {
-        if (resolved) return
-        void appendAppLog(`[Manager]: post-up hook failed, falling back to controller-ready log: ${error}\\n`)
-        // The core is usable once its controller announces readiness. The log
-        // listener above remains responsible for resolving this promise.
-      })
-    })
-  }
-  */
 
   // Prefer the controller-ready signal for startup completion. The hook is
   // supplementary and must not prevent the core from becoming usable when a
@@ -824,9 +798,8 @@ export async function keepCoreAlive(): Promise<void> {
     }
 
     await startCore(true)
-    if (directCoreState.child?.pid) {
-      await writeFile(path.join(dataDir(), 'core.pid'), directCoreState.child.pid.toString())
-    }
+    // core.pid.json (written in startCoreInternal) is the only PID record; the
+    // legacy core.pid file is deleted by stopCore and has no reader anymore.
   } catch (e) {
     void showNotification({ title: '内核启动出错', body: `${e}`, variant: 'danger' })
   }

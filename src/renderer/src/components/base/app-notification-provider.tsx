@@ -26,13 +26,19 @@ const AppNotificationProvider: React.FC = () => {
       dismissToastNotification(id)
     }
 
-    window.electron.ipcRenderer.on(IPC_EVENTS.APP_NOTIFICATION, handleNotification)
-    window.electron.ipcRenderer.on(IPC_EVENTS.APP_NOTIFICATION_DISMISS, handleNotificationDismiss)
+    const unsubscribeNotification = window.electron.ipcRenderer.on(
+      IPC_EVENTS.APP_NOTIFICATION,
+      handleNotification
+    )
+    const unsubscribeNotificationDismiss = window.electron.ipcRenderer.on(
+      IPC_EVENTS.APP_NOTIFICATION_DISMISS,
+      handleNotificationDismiss
+    )
     window.electron.ipcRenderer.send(IPC_EVENTS.APP_NOTIFICATION_READY)
     return (): void => {
       setErrorDetailHandler(null)
-      window.electron.ipcRenderer.removeAllListeners(IPC_EVENTS.APP_NOTIFICATION)
-      window.electron.ipcRenderer.removeAllListeners(IPC_EVENTS.APP_NOTIFICATION_DISMISS)
+      unsubscribeNotification()
+      unsubscribeNotificationDismiss()
     }
   }, [])
 

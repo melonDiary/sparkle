@@ -1,6 +1,7 @@
 import { useEffect } from 'react'
 import { onInitialContentReady } from '@renderer/utils/startup'
 import { createPreloadablePage } from './preloadable-page'
+import { delay } from '../../../shared/utils/delay'
 
 const OverridePage = createPreloadablePage(() => import('@renderer/pages/override'))
 const ProxiesPage = createPreloadablePage(() => import('@renderer/pages/proxies'))
@@ -56,12 +57,6 @@ let remainingPagesPromise: Promise<void> | undefined
 function waitForIdle(): Promise<void> {
   return new Promise((resolve) => {
     window.requestIdleCallback(() => resolve())
-  })
-}
-
-function delay(ms: number): Promise<void> {
-  return new Promise((resolve) => {
-    window.setTimeout(resolve, ms)
   })
 }
 

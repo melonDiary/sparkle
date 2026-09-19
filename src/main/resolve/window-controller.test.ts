@@ -13,7 +13,12 @@ describe('createWindowController', () => {
   it('shares an in-flight creation promise', async () => {
     let resolveCreation!: (window: WindowLike) => void
     const window = createFakeWindow()
-    const create = vi.fn(() => new Promise<WindowLike>((resolve) => { resolveCreation = resolve }))
+    const create = vi.fn(
+      () =>
+        new Promise<WindowLike>((resolve) => {
+          resolveCreation = resolve
+        })
+    )
     const controller = createWindowController({ create })
 
     const first = controller.createWindow()
@@ -28,9 +33,7 @@ describe('createWindowController', () => {
 
   it('allows retry after creation failure', async () => {
     const window = createFakeWindow()
-    const create = vi.fn()
-      .mockRejectedValueOnce(new Error('failed'))
-      .mockResolvedValueOnce(window)
+    const create = vi.fn().mockRejectedValueOnce(new Error('failed')).mockResolvedValueOnce(window)
     const controller = createWindowController({ create })
 
     await expect(controller.createWindow()).rejects.toThrow('failed')
@@ -52,14 +55,18 @@ describe('createWindowController', () => {
 
   it('triggers close for a visible window and shows a hidden one', async () => {
     const visibleWindow = createFakeWindow(true)
-    const visibleController = createWindowController({ create: vi.fn().mockResolvedValue(visibleWindow) })
+    const visibleController = createWindowController({
+      create: vi.fn().mockResolvedValue(visibleWindow)
+    })
     await visibleController.createWindow()
     await visibleController.triggerWindow()
     expect(visibleWindow.close).toHaveBeenCalledOnce()
     expect(visibleWindow.show).not.toHaveBeenCalled()
 
     const hiddenWindow = createFakeWindow(false)
-    const hiddenController = createWindowController({ create: vi.fn().mockResolvedValue(hiddenWindow) })
+    const hiddenController = createWindowController({
+      create: vi.fn().mockResolvedValue(hiddenWindow)
+    })
     await hiddenController.triggerWindow()
     expect(hiddenWindow.show).toHaveBeenCalledOnce()
   })

@@ -17,9 +17,12 @@ export const GroupsProvider: React.FC<{ children: ReactNode }> = ({ children }) 
   })
 
   React.useEffect(() => {
-    const unsubscribeGroupsUpdated = window.electron.ipcRenderer.on(IPC_EVENTS.GROUPS_UPDATED, () => {
-      mutate()
-    })
+    const unsubscribeGroupsUpdated = window.electron.ipcRenderer.on(
+      IPC_EVENTS.GROUPS_UPDATED,
+      () => {
+        mutate()
+      }
+    )
     const unsubscribeCoreStarted = window.electron.ipcRenderer.on(IPC_EVENTS.CORE_STARTED, () => {
       mutate()
     })

@@ -25,7 +25,8 @@ export function createWindowController<T extends WindowLike>(
     if (currentWindow) return currentWindow
     if (creating) return creating
 
-    creating = options.create()
+    creating = options
+      .create()
       .then((window) => {
         currentWindow = window
         options.onCreated?.(window)

@@ -2,7 +2,7 @@ import { exec } from 'child_process'
 import { promisify } from 'util'
 import { getAppConfig, patchControledMihomoConfig } from '../config'
 import { patchMihomoConfig } from '../core/mihomoApi'
-import { mainWindow } from '..'
+import { getMainWindow } from '../resolve/window-ref'
 import { ipcMain, net } from 'electron'
 import { appendAppLog } from '../utils/log'
 import { getDefaultDevice } from '../core/network'
@@ -45,12 +45,12 @@ export async function checkSSID(): Promise<void> {
     if (currentSSID && pauseSSID.includes(currentSSID)) {
       await patchControledMihomoConfig({ mode: 'direct' })
       await patchMihomoConfig({ mode: 'direct' })
-      mainWindow?.webContents.send(IPC_EVENTS.CONTROLLED_MIHOMO_CONFIG_UPDATED)
+      getMainWindow()?.webContents.send(IPC_EVENTS.CONTROLLED_MIHOMO_CONFIG_UPDATED)
       ipcMain.emit(IPC_EVENTS.UPDATE_TRAY_MENU)
     } else {
       await patchControledMihomoConfig({ mode: 'rule' })
       await patchMihomoConfig({ mode: 'rule' })
-      mainWindow?.webContents.send(IPC_EVENTS.CONTROLLED_MIHOMO_CONFIG_UPDATED)
+      getMainWindow()?.webContents.send(IPC_EVENTS.CONTROLLED_MIHOMO_CONFIG_UPDATED)
       ipcMain.emit(IPC_EVENTS.UPDATE_TRAY_MENU)
     }
   } catch (error) {

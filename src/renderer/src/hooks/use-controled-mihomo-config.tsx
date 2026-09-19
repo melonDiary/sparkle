@@ -31,11 +31,14 @@ export const ControledMihomoConfigProvider: React.FC<{ children: ReactNode }> = 
   }
 
   React.useEffect(() => {
-    window.electron.ipcRenderer.on(IPC_EVENTS.CONTROLLED_MIHOMO_CONFIG_UPDATED, () => {
-      mutateControledMihomoConfig()
-    })
+    const unsubscribeControledMihomoConfigUpdated = window.electron.ipcRenderer.on(
+      IPC_EVENTS.CONTROLLED_MIHOMO_CONFIG_UPDATED,
+      () => {
+        mutateControledMihomoConfig()
+      }
+    )
     return (): void => {
-      window.electron.ipcRenderer.removeAllListeners(IPC_EVENTS.CONTROLLED_MIHOMO_CONFIG_UPDATED)
+      unsubscribeControledMihomoConfigUpdated()
     }
   }, [])
 

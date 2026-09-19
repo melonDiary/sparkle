@@ -11,7 +11,7 @@ import {
 import type { ReactNode } from 'react'
 import { useMemo, useState } from 'react'
 import { BaseEditor } from '@renderer/components/base/base-editor-lazy'
-import { calcTraffic } from '@renderer/utils/calc'
+import { calcTraffic } from '../../../../shared/utils/calc'
 import dayjs from 'dayjs'
 import { BiCopy } from 'react-icons/bi'
 

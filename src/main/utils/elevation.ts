@@ -1,11 +1,8 @@
-import { execFile } from 'child_process'
-import { promisify } from 'util'
 import {
   isRunningAsAdmin as nativeIsRunningAsAdmin,
   runElevated
 } from '@uruhalushia/sparkle-native'
-
-const execFilePromise = promisify(execFile)
+import { execFileAsync } from './exec'
 
 let isAdminCached: boolean | null = null
 
@@ -34,7 +31,7 @@ export async function execWithElevation(command: string, args: string[]): Promis
   if (process.platform === 'win32') {
     try {
       if (await isRunningAsAdmin()) {
-        await execFilePromise(command, args, { timeout: 30000 })
+        await execFileAsync(command, args, { timeout: 30000 })
       } else {
         const exitCode = runElevated(command, args)
         if (exitCode !== 0) {
@@ -48,7 +45,7 @@ export async function execWithElevation(command: string, args: string[]): Promis
     }
   } else if (process.platform === 'linux') {
     try {
-      await execFilePromise('pkexec', [command, ...args])
+      await execFileAsync('pkexec', [command, ...args])
     } catch (error) {
       throw new Error(
         `Linux 提权执行失败：${error instanceof Error ? error.message : String(error)}`
@@ -57,7 +54,7 @@ export async function execWithElevation(command: string, args: string[]): Promis
   } else if (process.platform === 'darwin') {
     const cmd = [command, ...args].map(shellQuote).join(' ')
     try {
-      await execFilePromise('osascript', [
+      await execFileAsync('osascript', [
         '-e',
         `do shell script "${appleScriptQuote(cmd)}" with administrator privileges`
       ])

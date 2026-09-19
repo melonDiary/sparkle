@@ -14,7 +14,7 @@ import {
   Tabs,
   Tooltip
 } from '@heroui/react'
-import { calcTraffic } from '@renderer/utils/calc'
+import { calcTraffic } from '../../../shared/utils/calc'
 import ConnectionItem from '@renderer/components/connections/connection-item'
 import { Virtuoso, GroupedVirtuoso } from 'react-virtuoso'
 import ConnectionDetailModal from '@renderer/components/connections/connection-detail-modal'
@@ -42,7 +42,17 @@ import {
   isConnectionFilterCompletionSessionActive
 } from '@renderer/utils/connection-filter-autocomplete'
 
+// Module-level snapshot so navigating away and back keeps the connection list warm.
+// Bounded so a long-running session cannot retain every connection it has seen.
+const cachedConnectionsLimit = 2000
 let cachedConnections: ControllerConnectionDetail[] = []
+
+function setCachedConnections(connections: ControllerConnectionDetail[]): void {
+  cachedConnections =
+    connections.length > cachedConnectionsLimit
+      ? connections.slice(-cachedConnectionsLimit)
+      : connections
+}
 
 const Connections: React.FC = () => {
   const { controledMihomoConfig } = useControledMihomoConfig()
@@ -250,7 +260,7 @@ const Connections: React.FC = () => {
       setDeletedIds((prev) => new Set([...prev, ...trashIds]))
       setAllConnections((allConns) => {
         const updatedConnections = allConns.filter((conn) => !trashIds.has(conn.id))
-        cachedConnections = updatedConnections
+        setCachedConnections(updatedConnections)
         return updatedConnections
       })
       return []
@@ -384,7 +394,7 @@ const Connections: React.FC = () => {
         setClosedConnections(closedConns)
         const finalAllConnections = allConns.slice(-(activeConns.length + 200))
         setAllConnections(finalAllConnections)
-        cachedConnections = finalAllConnections
+        setCachedConnections(finalAllConnections)
       } else {
         const allConns = allConnectionsRef.current.map((conn) => {
           const activeConn = activeConnsMap.get(conn.id)
@@ -399,14 +409,17 @@ const Connections: React.FC = () => {
         setActiveConnections(activeConns)
         setClosedConnections(closedConns)
         setAllConnections(allConns)
-        cachedConnections = allConns
+        setCachedConnections(allConns)
       }
     }
 
-    window.electron.ipcRenderer.on(IPC_EVENTS.MIHOMO_CONNECTIONS, handleConnections)
+    const unsubscribeConnections = window.electron.ipcRenderer.on(
+      IPC_EVENTS.MIHOMO_CONNECTIONS,
+      handleConnections
+    )
 
     return (): void => {
-      window.electron.ipcRenderer.removeAllListeners(IPC_EVENTS.MIHOMO_CONNECTIONS)
+      unsubscribeConnections()
     }
   }, [connectionInterval])
 

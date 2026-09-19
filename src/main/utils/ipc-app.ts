@@ -2,18 +2,42 @@ import { app } from 'electron'
 import { registerIpcHandler } from './ipc-registration'
 import { ipcErrorWrapper } from './ipc-error'
 import { checkAutoRun, disableAutoRun, enableAutoRun } from '../sys/autoRun'
-import { getAppConfig, patchAppConfig, getControledMihomoConfig, patchControledMihomoConfig } from '../config'
+import {
+  getAppConfig,
+  patchAppConfig,
+  getControledMihomoConfig,
+  patchControledMihomoConfig
+} from '../config'
 import { restartCore, startNetworkDetection, stopCore } from '../core/manager'
 import { setNotQuitDialog } from '../resolve/appLifecycle'
 import { stopNetworkDetection } from '../core/network'
-import { checkCorePermission, manualGrantCorePermition, revokeCorePermission } from '../core/permission'
+import {
+  checkCorePermission,
+  manualGrantCorePermition,
+  revokeCorePermission
+} from '../core/permission'
 import { triggerSysProxy } from '../sys/sysproxy'
 import { checkUpdate, downloadAndInstallUpdate, cancelUpdate } from '../resolve/autoUpdater'
 import { checkElevateTask, deleteElevateTask } from '../sys/misc'
-import { serviceStatus, installService, uninstallService, startService, stopService, initService, testServiceConnection, restartService } from '../service/manager'
+import {
+  serviceStatus,
+  installService,
+  uninstallService,
+  startService,
+  stopService,
+  initService,
+  testServiceConnection,
+  restartService
+} from '../service/manager'
 import { patchCoreProfile } from '../service/api'
 import { coreLogPath } from './dirs'
-import { getRuntimeConfig, getRuntimeConfigStr, getRawProfileStr, getCurrentProfileStr, getOverrideProfileStr } from '../core/factory'
+import {
+  getRuntimeConfig,
+  getRuntimeConfigStr,
+  getRawProfileStr,
+  getCurrentProfileStr,
+  getOverrideProfileStr
+} from '../core/factory'
 import { appendAppLog } from './log'
 import { showNotification } from './notification'
 import { startMonitor } from '../resolve/trafficMonitor'
@@ -22,9 +46,17 @@ import { clearCachedMihomoLogs, getCachedMihomoLogs } from './log'
 async function patchAppConfigWithServiceSync(patch: Partial<AppConfig>): Promise<AppConfig> {
   const nextConfig = await patchAppConfig(await normalizeServiceModePatch(patch))
   if (!('saveLogs' in patch || 'maxLogFileSizeMB' in patch)) return nextConfig
-  const { corePermissionMode = 'elevated', saveLogs = true, maxLogFileSizeMB = 20 } = await getAppConfig()
+  const {
+    corePermissionMode = 'elevated',
+    saveLogs = true,
+    maxLogFileSizeMB = 20
+  } = await getAppConfig()
   if (corePermissionMode !== 'service') return nextConfig
-  void patchCoreProfile({ log_path: coreLogPath(), save_logs: saveLogs, max_log_file_size_mb: maxLogFileSizeMB }).catch((error) => {
+  void patchCoreProfile({
+    log_path: coreLogPath(),
+    save_logs: saveLogs,
+    max_log_file_size_mb: maxLogFileSizeMB
+  }).catch((error) => {
     appendAppLog(`[Service]: sync core log config failed, ${error}\n`).catch(() => {})
   })
   return nextConfig
@@ -35,7 +67,10 @@ async function normalizeServiceModePatch(patch: Partial<AppConfig>): Promise<Par
   const status = await serviceStatus().catch(() => 'unknown' as const)
   if (status === 'running') return patch
   void showNotification({ title: '服务不可用，已切换到执行命令模式' })
-  return { ...patch, sysProxy: { ...patch.sysProxy, settingMode: 'exec', guard: false, guardNotify: false } }
+  return {
+    ...patch,
+    sysProxy: { ...patch.sysProxy, settingMode: 'exec', guard: false, guardNotify: false }
+  }
 }
 
 export function registerAppIpc(): void {
@@ -86,5 +121,8 @@ export function registerAppIpc(): void {
   r('getVersion', () => app.getVersion())
   r('platform', () => process.platform)
   r('quitApp', () => app.quit())
-  r('notDialogQuit', () => { setNotQuitDialog(); app.quit() })
+  r('notDialogQuit', () => {
+    setNotQuitDialog()
+    app.quit()
+  })
 }

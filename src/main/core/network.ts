@@ -1,10 +1,9 @@
-import { execFile } from 'child_process'
 import { net } from 'electron'
 import os from 'os'
-import { promisify } from 'util'
 import { getAppConfig, getControledMihomoConfig, patchAppConfig } from '../config'
 import { setSysDns } from '../service/api'
 import { triggerSysProxy } from '../sys/sysproxy'
+import { execFileAsync } from '../utils/exec'
 import { appendAppLog } from '../utils/log'
 
 export interface NetworkCoreController {
@@ -20,8 +19,7 @@ let networkDetectionGeneration = 0
 let networkDownHandled = false
 
 export async function getDefaultDevice(): Promise<string> {
-  const execFilePromise = promisify(execFile)
-  const { stdout: deviceOut } = await execFilePromise('route', ['-n', 'get', 'default'])
+  const { stdout: deviceOut } = await execFileAsync('route', ['-n', 'get', 'default'])
   let device = deviceOut.split('\n').find((s) => s.includes('interface:'))
   device = device?.trim().split(' ').slice(1).join(' ')
   if (!device) throw new Error('Get device failed')
@@ -29,9 +27,8 @@ export async function getDefaultDevice(): Promise<string> {
 }
 
 async function getDefaultService(): Promise<string> {
-  const execFilePromise = promisify(execFile)
   const device = await getDefaultDevice()
-  const { stdout: order } = await execFilePromise('networksetup', ['-listnetworkserviceorder'])
+  const { stdout: order } = await execFileAsync('networksetup', ['-listnetworkserviceorder'])
   const block = order.split('\n\n').find((s) => s.includes(`Device: ${device}`))
   if (!block) throw new Error('Get networkservice failed')
   for (const line of block.split('\n')) {
@@ -43,9 +40,8 @@ async function getDefaultService(): Promise<string> {
 }
 
 async function getOriginDNS(): Promise<void> {
-  const execFilePromise = promisify(execFile)
   const service = await getDefaultService()
-  const { stdout: dns } = await execFilePromise('networksetup', ['-getdnsservers', service])
+  const { stdout: dns } = await execFileAsync('networksetup', ['-getdnsservers', service])
   if (dns.startsWith("There aren't any DNS Servers set on")) {
     await patchAppConfig({ originDNS: 'Empty' })
   } else {
@@ -57,8 +53,7 @@ async function setDNS(dns: string, mode: 'none' | 'exec' | 'service'): Promise<v
   const service = await getDefaultService()
   const dnsServers = dns.split(' ')
   if (mode === 'exec') {
-    const execFilePromise = promisify(execFile)
-    await execFilePromise('networksetup', ['-setdnsservers', service, ...dnsServers])
+    await execFileAsync('networksetup', ['-setdnsservers', service, ...dnsServers])
     return
   }
   if (mode === 'service') {

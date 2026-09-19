@@ -5,7 +5,7 @@ import axios from 'axios'
 import AdmZip from 'adm-zip'
 import { getControledMihomoConfig } from '../config'
 import { existsSync } from 'fs'
-import { mainWindow } from '..'
+import { getMainWindow } from './window-ref'
 import { DOWNLOAD_TIMEOUT } from '../utils/http'
 import { floatingWindow } from './floatingWindow'
 
@@ -125,8 +125,8 @@ export async function writeTheme(theme: string, css: string): Promise<void> {
 
 export async function applyTheme(theme: string): Promise<void> {
   const css = normalizeThemeCss(await readTheme(theme))
-  await mainWindow?.webContents.removeInsertedCSS(insertedCSSKeyMain || '')
-  insertedCSSKeyMain = await mainWindow?.webContents.insertCSS(css)
+  await getMainWindow()?.webContents.removeInsertedCSS(insertedCSSKeyMain || '')
+  insertedCSSKeyMain = await getMainWindow()?.webContents.insertCSS(css)
   try {
     await floatingWindow?.webContents.removeInsertedCSS(insertedCSSKeyFloating || '')
     insertedCSSKeyFloating = await floatingWindow?.webContents.insertCSS(css)

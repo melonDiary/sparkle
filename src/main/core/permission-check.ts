@@ -2,10 +2,10 @@ import { statSync } from 'fs'
 
 const S_ISUID = 0o4000
 
-export function hasSetuidPermission(permissions: string): boolean {
-  return permissions.includes('s') || permissions.includes('S')
-}
-
+/**
+ * Windows has no setuid bit; the elevated-task model decides whether the core is
+ * permitted, so the core is always reported as permitted here.
+ */
 export function checkCorePermissionPathSync(corePath: string): boolean {
   if (process.platform === 'win32') return true
   try {

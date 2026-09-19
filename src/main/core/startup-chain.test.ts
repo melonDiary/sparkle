@@ -42,9 +42,20 @@ describe('startup-chain helpers', () => {
     expect(tracker.isReady('anything')).toBe(true)
   })
 
+  it('tolerates a runtime config that is not generated yet', () => {
+    const tracker = createProviderInitializationTracker(undefined)
+    expect(tracker.hasProviders).toBe(false)
+    expect(tracker.isReady('Start initial provider Foo"')).toBe(false)
+    expect(tracker.isReady('Start initial compatible provider default')).toBe(true)
+  })
+
   it('recognizes controller and tun errors', () => {
     expect(isControllerReadyLog('RESTful API listening at 127.0.0.1:9090')).toBe(true)
-    expect(isTunPermissionError('Start TUN listening error: configure tun interface: operation not permitted')).toBe(true)
+    expect(
+      isTunPermissionError(
+        'Start TUN listening error: configure tun interface: operation not permitted'
+      )
+    ).toBe(true)
   })
 
   it('adds hook arguments when configured', () => {

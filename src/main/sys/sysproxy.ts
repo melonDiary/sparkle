@@ -1,8 +1,8 @@
 import { getAppConfig, getControledMihomoConfig } from '../config'
 import { pacPort, startPacServer, stopPacServer } from '../resolve/server'
-import { promisify } from 'util'
-import { execFile, execFileSync } from 'child_process'
+import { execFileSync } from 'child_process'
 import { servicePath } from '../utils/dirs'
+import { execFileAsync } from '../utils/exec'
 import { net } from 'electron'
 import {
   disableProxy,
@@ -119,7 +119,6 @@ async function setSysProxy(onlyActiveDevice: boolean, useRegistry = false): Prom
   const guard = settingMode === 'service' && !!sysProxy.guard
   const guardNotify = guard && !!sysProxy.guardNotify
   const { 'mixed-port': port = 7890 } = await getControledMihomoConfig()
-  const execFilePromise = promisify(execFile)
 
   switch (mode || 'manual') {
     case 'auto': {
@@ -138,7 +137,7 @@ async function setSysProxy(onlyActiveDevice: boolean, useRegistry = false): Prom
         }
       } else {
         updateSysproxyGuardEventStream(false)
-        await execFilePromise(servicePath(), [
+        await execFileAsync(servicePath(), [
           'sysproxy',
           'pac',
           '--url',
@@ -167,7 +166,7 @@ async function setSysProxy(onlyActiveDevice: boolean, useRegistry = false): Prom
           }
         } else {
           updateSysproxyGuardEventStream(false)
-          await execFilePromise(servicePath(), [
+          await execFileAsync(servicePath(), [
             'sysproxy',
             'proxy',
             '--server',
@@ -190,9 +189,8 @@ async function disableSysProxy(onlyActiveDevice: boolean, useRegistry = false): 
   updateSysproxyGuardEventStream(false)
   const { sysProxy } = await getAppConfig()
   const { settingMode = 'exec' } = sysProxy
-  const execFilePromise = promisify(execFile)
   const disableWithExec = (): Promise<unknown> =>
-    execFilePromise(servicePath(), ['sysproxy', 'disable', ...registryArgs(useRegistry)])
+    execFileAsync(servicePath(), ['sysproxy', 'disable', ...registryArgs(useRegistry)])
 
   if (settingMode === 'service') {
     try {

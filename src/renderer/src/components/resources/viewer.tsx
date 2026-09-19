@@ -9,7 +9,7 @@ import {
   saveFileStrWithElevation,
   setFileStr
 } from '@renderer/utils/ipc'
-import { dump, load } from 'js-yaml'
+import { stringify as dump, parse as load } from 'yaml'
 import ConfirmModal from '../base/base-confirm'
 import { notify } from '@renderer/utils/notification'
 type Language = 'yaml' | 'javascript' | 'css' | 'json' | 'text'

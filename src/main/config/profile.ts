@@ -20,6 +20,7 @@ import { execWithElevation } from '../utils/elevation'
 import { decryptAgeText, encryptAgeText, isAgeEncryptedText } from '../utils/age'
 import { isHttpUrl } from '../utils/url'
 import { requestRemoteText } from '../utils/remote-request'
+import { parseContentDispositionFilename } from '../utils/http'
 import { CachedYamlStore } from './cached-yaml-store'
 
 const profileConfigStore = new CachedYamlStore<ProfileConfig>({
@@ -196,66 +197,6 @@ export async function createProfile(item: Partial<ProfileItem>): Promise<Profile
           proxyPort: newItem.useProxy ? mixedPort : undefined,
           userAgent: newItem.ua || (await getUserAgent())
         })
-        /*
-          if (item.fingerprint) {
-            const expected = item.fingerprint.replace(/:/g, '').toUpperCase()
-            const verify = (s: tls.TLSSocket) => {
-              if (getCertFingerprint(s.getPeerCertificate()) !== expected)
-                s.destroy(new Error('证书指纹不匹配'))
-            }
-
-            if (newItem.useProxy && mixedPort != 0) {
-              const urlObj = new URL(item.url)
-              const hostname = urlObj.hostname
-              const port = urlObj.port || '443'
-              httpsAgent.createConnection = (_, cb) => {
-                const req = http.request({
-                  host: '127.0.0.1',
-                  port: mixedPort,
-                  method: 'CONNECT',
-                  path: `${hostname}:${port}`
-                })
-
-                req.on('connect', (res, sock, head) => {
-                  if (res.statusCode !== 200) {
-                    cb?.(new Error(`代理连接失败，状态码：${res.statusCode}`), null!)
-                    return
-                  }
-                  if (head.length > 0) sock.unshift(head)
-                  const tls$ = tls.connect(
-                    { socket: sock, servername: hostname, rejectUnauthorized: false },
-                    () => verify(tls$)
-                  )
-                  cb?.(null, tls$)
-                })
-
-                req.on('error', (e) => cb?.(e, null!))
-                req.end()
-                return null!
-              }
-            } else {
-              const conn = httpsAgent.createConnection.bind(httpsAgent)
-              httpsAgent.createConnection = (o, c) => {
-                const sock = conn(o, c)
-                sock?.once('secureConnect', function (this: tls.TLSSocket) {
-                  verify(this)
-                })
-                return sock
-              }
-            }
-          }
-
-          res = await axios.get(item.url, {
-            httpsAgent,
-            ...(newItem.useProxy &&
-              mixedPort &&
-              !item.fingerprint && {
-                proxy: { protocol: 'http', host: '127.0.0.1', port: mixedPort }
-              }),
-            headers: { 'User-Agent': newItem.ua || (await getUserAgent()) },
-            responseType: 'text'
-          })
-        */
       }
 
       const data = await decryptProfileContent(String(res.data), newItem)
@@ -264,7 +205,8 @@ export async function createProfile(item: Partial<ProfileItem>): Promise<Profile
         k.toLowerCase().endsWith('content-disposition')
       )
       if (contentDispositionKey && newItem.name === 'Remote File') {
-        newItem.name = parseFilename(headers[contentDispositionKey])
+        const filename = parseContentDispositionFilename(headers[contentDispositionKey])
+        if (filename) newItem.name = filename
       }
       const homeKey = Object.keys(headers).find((k) =>
         k.toLowerCase().endsWith('profile-web-page-url')
@@ -370,17 +312,6 @@ export async function getProfile(id: string | undefined): Promise<MihomoConfig> 
   let result = parseYaml<MihomoConfig>(profile)
   if (typeof result !== 'object') result = {} as MihomoConfig
   return result
-}
-
-// attachment;filename=xxx.yaml; filename*=UTF-8''%xx%xx%xx
-function parseFilename(str: string): string {
-  if (str.match(/filename\*=.*''/)) {
-    const filename = decodeURIComponent(str.split(/filename\*=.*''/)[1])
-    return filename
-  } else {
-    const filename = str.split('filename=')[1]
-    return filename
-  }
 }
 
 // subscription-userinfo: upload=1234; download=2234; total=1024000; expire=2218532293

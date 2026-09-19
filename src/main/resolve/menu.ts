@@ -1,5 +1,5 @@
 import { app, Menu, shell, dialog } from 'electron'
-import { mainWindow } from '..'
+import { getMainWindow } from './window-ref'
 import { getAppConfig } from '../config'
 import { quitWithoutCore } from '../core/manager'
 import { dataDir, logDir, mihomoCoreDir, mihomoWorkDir } from '../utils/dirs'
@@ -130,17 +130,13 @@ export async function createApplicationMenu(): Promise<void> {
           label: '重新加载',
           accelerator: 'CmdOrCtrl+R',
           click: () => {
-            if (mainWindow) {
-              mainWindow.reload()
-            }
+            getMainWindow()?.reload()
           }
         },
         {
           label: '开发者工具',
           click: () => {
-            if (mainWindow) {
-              mainWindow.webContents.toggleDevTools()
-            }
+            getMainWindow()?.webContents.toggleDevTools()
           }
         }
       ]
@@ -184,7 +180,7 @@ export async function createApplicationMenu(): Promise<void> {
         {
           label: '关于',
           click: () => {
-            dialog.showMessageBox(mainWindow!, {
+            dialog.showMessageBox(getMainWindow()!, {
               type: 'info',
               title: '关于 Sparkle',
               message: 'Sparkle',

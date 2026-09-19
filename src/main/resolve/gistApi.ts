@@ -27,7 +27,10 @@ async function getGistUploadContent(): Promise<{
   fileName: string
 }> {
   const { gistEncrypted = false, gistAgeRecipient = '' } = await getAppConfig()
-  const config = await getRuntimeConfigStr()
+  const config = getRuntimeConfigStr()
+  if (!config) {
+    throw new Error('运行时配置尚未生成，无法同步到 Gist')
+  }
   const content = gistEncrypted ? await encryptAgeText(config, gistAgeRecipient) : config
 
   return {

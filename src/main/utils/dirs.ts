@@ -2,22 +2,41 @@ import { is } from '@electron-toolkit/utils'
 import { existsSync, mkdirSync, readdirSync } from 'fs'
 import { app } from 'electron'
 import path from 'path'
-import { execSync } from 'child_process'
 import { getAppConfigSync } from '../config/app'
+import { execFileAsync } from './exec'
 import { checkCorePermissionPathSync } from '../core/permission-check'
 
 export const homeDir = app.getPath('home')
 
+// The portable layout and the data directory are fixed for the lifetime of the
+// process. Path helpers are called on hot paths (every log write resolves its
+// directory), so the probe result is cached instead of hitting the filesystem.
+let portableCache: boolean | undefined
+let dataDirCache: string | undefined
+let corePermissionCache: { corePath: string; permitted: boolean } | undefined
+
 export function isPortable(): boolean {
-  return existsSync(path.join(exeDir(), 'PORTABLE'))
+  if (portableCache === undefined) {
+    portableCache = existsSync(path.join(exeDir(), 'PORTABLE'))
+  }
+  return portableCache
 }
 
 export function dataDir(): string {
-  if (isPortable()) {
-    return path.join(exeDir(), 'data')
-  } else {
-    return app.getPath('userData')
+  if (dataDirCache === undefined) {
+    dataDirCache = isPortable() ? path.join(exeDir(), 'data') : app.getPath('userData')
   }
+  return dataDirCache
+}
+
+/**
+ * Invalidate cached path/permission decisions. Required after the core binary's
+ * setuid bit changes; safe to call at any time.
+ */
+export function invalidateDirCache(): void {
+  portableCache = undefined
+  dataDirCache = undefined
+  corePermissionCache = undefined
 }
 
 export function taskDir(): string {
@@ -72,6 +91,13 @@ export function themesDir(): string {
   return path.join(dataDir(), 'themes')
 }
 
+function isCorePermissionGranted(corePath: string): boolean {
+  if (corePermissionCache?.corePath !== corePath) {
+    corePermissionCache = { corePath, permitted: checkCorePermissionPathSync(corePath) }
+  }
+  return corePermissionCache.permitted
+}
+
 export function mihomoIpcPath(): string {
   if (process.platform === 'win32') {
     return '\\\\.\\pipe\\Sparkle\\mihomo'
@@ -80,7 +106,7 @@ export function mihomoIpcPath(): string {
   if (core === 'system') {
     return '/tmp/sparkle-mihomo-external.sock'
   }
-  if (!checkCorePermissionPathSync(mihomoCorePath(core))) {
+  if (!isCorePermissionGranted(mihomoCorePath(core))) {
     return '/tmp/sparkle-mihomo-api-noperm.sock'
   }
   return '/tmp/sparkle-mihomo-api.sock'
@@ -205,42 +231,44 @@ export function substoreLogPath(): string {
   return datedLogPath('sub-store')
 }
 
-function hasCommand(command: string): boolean {
+async function execCommand(command: string, args: string[]): Promise<string | undefined> {
   try {
-    const isWin = process.platform === 'win32'
-    const whichCmd = isWin ? 'where' : 'which'
-    execSync(`${whichCmd} ${command}`, { encoding: 'utf8', stdio: 'pipe' })
-    return true
+    const { stdout } = await execFileAsync(command, args, { encoding: 'utf8', windowsHide: true })
+    const result = stdout.trim()
+    return result || undefined
   } catch (error) {
-    return false
+    return undefined
   }
 }
 
-export function findSystemMihomo(): string[] {
+async function hasCommand(command: string): Promise<boolean> {
+  const whichCmd = process.platform === 'win32' ? 'where' : 'which'
+  return (await execCommand(whichCmd, [command])) !== undefined
+}
+
+/**
+ * Discovery shells out to `where`/`which`/`brew` and package managers. Every probe
+ * is awaited instead of running `execSync`, which used to block the main process
+ * for the whole scan.
+ */
+export async function findSystemMihomo(): Promise<string[]> {
   const isWin = process.platform === 'win32'
   const isLinux = process.platform === 'linux'
   const isMac = process.platform === 'darwin'
-  const foundPaths: string[] = []
+  const foundPaths = new Set<string>()
   const searchNames = ['mihomo', 'clash']
+  const addResultPaths = (output: string | undefined): void => {
+    if (!output) return
+    for (const line of output.split(/\r?\n/)) {
+      const candidate = line.trim()
+      if (candidate && existsSync(candidate)) {
+        foundPaths.add(candidate)
+      }
+    }
+  }
 
   for (const name of searchNames) {
-    try {
-      const command = isWin ? 'where' : 'which'
-      const result = execSync(`${command} ${name}`, {
-        encoding: 'utf8',
-        stdio: 'pipe'
-      }).trim()
-      if (result) {
-        const paths = result.split('\n').filter((p) => p && existsSync(p))
-        for (const p of paths) {
-          if (!foundPaths.includes(p)) {
-            foundPaths.push(p)
-          }
-        }
-      }
-    } catch (error) {
-      // ignore
-    }
+    addResultPaths(await execCommand(isWin ? 'where' : 'which', [name]))
   }
 
   if (!isWin) {
@@ -254,40 +282,30 @@ export function findSystemMihomo(): string[] {
     ]
 
     for (const dir of commonDirs) {
-      if (existsSync(dir)) {
-        try {
-          const files = readdirSync(dir)
-          for (const file of files) {
-            if (file.startsWith('mihomo') || file.startsWith('clash')) {
-              const binPath = path.join(dir, file)
-              if (existsSync(binPath) && !foundPaths.includes(binPath)) {
-                foundPaths.push(binPath)
-              }
-            }
+      if (!existsSync(dir)) continue
+      try {
+        for (const file of readdirSync(dir)) {
+          if (!file.startsWith('mihomo') && !file.startsWith('clash')) continue
+          const binPath = path.join(dir, file)
+          if (existsSync(binPath)) {
+            foundPaths.add(binPath)
           }
-        } catch (error) {
-          // ignore
         }
+      } catch (error) {
+        // ignore
       }
     }
   }
 
   if (isMac || isLinux) {
     // Homebrew
-    if (hasCommand('brew')) {
+    if (await hasCommand('brew')) {
       for (const name of searchNames) {
-        try {
-          const result = execSync(`brew --prefix ${name} 2>/dev/null`, {
-            encoding: 'utf8'
-          }).trim()
-          if (result) {
-            const binPath = path.join(result, 'bin', name)
-            if (existsSync(binPath) && !foundPaths.includes(binPath)) {
-              foundPaths.push(binPath)
-            }
-          }
-        } catch (error) {
-          // ignore
+        const prefix = await execCommand('brew', ['--prefix', name])
+        if (!prefix) continue
+        const binPath = path.join(prefix, 'bin', name)
+        if (existsSync(binPath)) {
+          foundPaths.add(binPath)
         }
       }
     }
@@ -295,67 +313,43 @@ export function findSystemMihomo(): string[] {
 
   if (isLinux) {
     // apt/dpkg (Debian/Ubuntu)
-    if (hasCommand('dpkg')) {
+    if (await hasCommand('dpkg')) {
       for (const name of searchNames) {
-        try {
-          const result = execSync(`dpkg -L ${name} 2>/dev/null | grep bin/${name}$`, {
-            encoding: 'utf8'
-          }).trim()
-          if (result) {
-            const paths = result.split('\n').filter((p) => p && existsSync(p))
-            for (const p of paths) {
-              if (!foundPaths.includes(p)) {
-                foundPaths.push(p)
-              }
-            }
+        const result = await execCommand('dpkg', ['-L', name])
+        if (!result) continue
+        for (const line of result.split('\n')) {
+          const candidate = line.trim()
+          if (candidate.endsWith(`bin/${name}`) && existsSync(candidate)) {
+            foundPaths.add(candidate)
           }
-        } catch (error) {
-          // ignore
         }
       }
     }
 
     // rpm/yum (RedHat/CentOS/Fedora)
-    if (hasCommand('rpm')) {
+    if (await hasCommand('rpm')) {
       for (const name of searchNames) {
-        try {
-          const result = execSync(`rpm -ql ${name} 2>/dev/null | grep bin/${name}$`, {
-            encoding: 'utf8'
-          }).trim()
-          if (result) {
-            const paths = result.split('\n').filter((p) => p && existsSync(p))
-            for (const p of paths) {
-              if (!foundPaths.includes(p)) {
-                foundPaths.push(p)
-              }
-            }
+        const result = await execCommand('rpm', ['-ql', name])
+        if (!result) continue
+        for (const line of result.split('\n')) {
+          const candidate = line.trim()
+          if (candidate.endsWith(`bin/${name}`) && existsSync(candidate)) {
+            foundPaths.add(candidate)
           }
-        } catch (error) {
-          // ignore
         }
       }
     }
 
     // pacman (Arch Linux)
-    if (hasCommand('pacman')) {
+    if (await hasCommand('pacman')) {
       for (const name of searchNames) {
-        try {
-          const result = execSync(`pacman -Ql ${name} 2>/dev/null | grep bin/${name}$`, {
-            encoding: 'utf8'
-          }).trim()
-          if (result) {
-            const paths = result
-              .split('\n')
-              .map((line) => line.split(' ')[1])
-              .filter((p) => p && existsSync(p))
-            for (const p of paths) {
-              if (!foundPaths.includes(p)) {
-                foundPaths.push(p)
-              }
-            }
+        const result = await execCommand('pacman', ['-Ql', name])
+        if (!result) continue
+        for (const line of result.split('\n')) {
+          const candidate = line.split(' ')[1]
+          if (candidate?.endsWith(`bin/${name}`) && existsSync(candidate)) {
+            foundPaths.add(candidate)
           }
-        } catch (error) {
-          // ignore
         }
       }
     }
@@ -363,19 +357,15 @@ export function findSystemMihomo(): string[] {
 
   if (isWin) {
     // Scoop
-    if (hasCommand('scoop')) {
+    if (await hasCommand('scoop')) {
       for (const name of searchNames) {
-        try {
-          const result = execSync(`scoop which ${name} 2>nul`, { encoding: 'utf8' }).trim()
-          if (result && existsSync(result) && !foundPaths.includes(result)) {
-            foundPaths.push(result)
-          }
-        } catch (error) {
-          // ignore
+        const result = await execCommand('scoop', ['which', name])
+        if (result && existsSync(result)) {
+          foundPaths.add(result)
         }
       }
     }
   }
 
-  return Array.from(new Set(foundPaths)).sort()
+  return Array.from(foundPaths).sort()
 }

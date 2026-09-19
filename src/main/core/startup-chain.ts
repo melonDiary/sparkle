@@ -62,12 +62,12 @@ export function createCoreSpawnArgs(options: CoreSpawnArgsOptions): string[] {
 }
 
 export function createProviderInitializationTracker(
-  runtimeConfig: RuntimeConfigProviders
+  runtimeConfig: RuntimeConfigProviders | undefined
 ): ProviderInitializationTracker {
   const providerNames = new Set(
     [
-      ...Object.keys(runtimeConfig['rule-providers'] || {}),
-      ...Object.keys(runtimeConfig['proxy-providers'] || {})
+      ...Object.keys(runtimeConfig?.['rule-providers'] || {}),
+      ...Object.keys(runtimeConfig?.['proxy-providers'] || {})
     ].map(normalizeProviderName)
   )
   const unmatchedProviders = new Set(providerNames)
@@ -104,14 +104,14 @@ export function isControllerReadyLog(logLine: string): boolean {
     return (
       logLine.includes('RESTful API unix listening at') ||
       logLine.includes('RESTful API listening at') ||
-      logLine.includes('external controller unix') && logLine.includes('listening')
+      (logLine.includes('external controller unix') && logLine.includes('listening'))
     )
   }
 
   return (
     logLine.includes('RESTful API pipe listening at') ||
     logLine.includes('RESTful API listening at') ||
-    logLine.includes('external controller pipe') && logLine.includes('listening')
+    (logLine.includes('external controller pipe') && logLine.includes('listening'))
   )
 }
 

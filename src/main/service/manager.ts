@@ -3,19 +3,13 @@ import { execWithElevation } from '../utils/elevation'
 import { KeyManager, type KeyPair, computeKeyId } from './key'
 import { initServiceAPI, getServiceAxios, ping, test, ServiceAPIError } from './api'
 import { getAppConfig, patchAppConfig } from '../config/app'
-import { execFile } from 'child_process'
-import { promisify } from 'util'
 import { loadServiceAuthSecret, saveServiceAuthSecret, type ServiceAuthSecret } from './auth-store'
 import { getCurrentUserSid } from '@uruhalushia/sparkle-native'
+import { execFileAsync } from '../utils/exec'
+import { delay } from '../../shared/utils/delay'
+import { UserCancelledError, isUserCancelledError } from '../../shared/utils/user-cancelled'
 
 let keyManager: KeyManager | null = null
-const execFilePromise = promisify(execFile)
-
-function delay(ms: number): Promise<void> {
-  return new Promise((resolve) => {
-    setTimeout(resolve, ms)
-  })
-}
 
 function parseLegacyServiceAuth(value: string): ServiceAuthSecret | null {
   try {
@@ -126,27 +120,6 @@ export function getKeyManager(): KeyManager {
 
 export function getPublicKey(): string {
   return getKeyManager().getPublicKey()
-}
-
-class UserCancelledError extends Error {
-  constructor(message = '用户取消操作') {
-    super(message)
-    this.name = 'UserCancelledError'
-  }
-}
-
-function isUserCancelledError(error: unknown): boolean {
-  if (error instanceof UserCancelledError) {
-    return true
-  }
-  const errorMsg = error instanceof Error ? error.message : String(error)
-  return (
-    errorMsg.includes('用户已取消') ||
-    errorMsg.includes('User canceled') ||
-    errorMsg.includes('(-128)') ||
-    errorMsg.includes('user cancelled') ||
-    errorMsg.includes('dismissed')
-  )
 }
 
 interface ServiceLogEntry {
@@ -346,7 +319,7 @@ export async function serviceStatus(): Promise<
   const execPath = servicePath()
 
   try {
-    const { stdout, stderr } = await execFilePromise(execPath, ['service', 'status'])
+    const { stdout, stderr } = await execFileAsync(execPath, ['service', 'status'])
     if (parseServiceLog(`${stdout}\n${stderr}`)?.status?.state === 'not-installed') {
       return 'not-installed'
     }

@@ -1,8 +1,7 @@
-import { execFile, execSync, spawn } from 'child_process'
+import { execSync, spawn } from 'child_process'
 import { app, dialog, nativeImage, nativeTheme, shell } from 'electron'
 import { readFile } from 'fs/promises'
 import path from 'path'
-import { promisify } from 'util'
 import { setupFirewallRules } from '@uruhalushia/sparkle-native'
 import {
   dataDir,
@@ -16,6 +15,7 @@ import {
 } from '../utils/dirs'
 import { copyFileSync, writeFileSync } from 'fs'
 import { execWithElevation } from '../utils/elevation'
+import { execFileAsync } from '../utils/exec'
 
 export function getFilePath(
   ext: string[],
@@ -57,9 +57,8 @@ export function openFile(type: 'profile' | 'override', id: string, ext?: 'yaml' 
 }
 
 export async function openUWPTool(): Promise<void> {
-  const execFilePromise = promisify(execFile)
   const uwpToolPath = path.join(resourcesDir(), 'files', 'enableLoopback.exe')
-  await execFilePromise(uwpToolPath)
+  await execFileAsync(uwpToolPath)
 }
 
 export async function setupFirewall(): Promise<void> {
@@ -123,11 +122,15 @@ function prepareElevateTaskFile(): string {
   return taskFilePath
 }
 
+const schtasksPath = `${process.env.SystemRoot ?? 'C:\\Windows'}\\System32\\schtasks.exe`
+
+/**
+ * Runs during synchronous bootstrap, before the app is initialized, so blocking
+ * here is intentional: the elevated task must exist before startup continues.
+ */
 export function createElevateTaskSync(): void {
   const taskFilePath = prepareElevateTaskFile()
-  execSync(
-    `%SystemRoot%\\System32\\schtasks.exe /create /tn "sparkle-run" /xml "${taskFilePath}" /f`
-  )
+  execSync(`${schtasksPath} /create /tn "sparkle-run" /xml "${taskFilePath}" /f`)
 }
 
 export async function createElevateTask(): Promise<void> {
@@ -144,7 +147,9 @@ export async function createElevateTask(): Promise<void> {
 
 export async function deleteElevateTask(): Promise<void> {
   try {
-    execSync(`%SystemRoot%\\System32\\schtasks.exe /delete /tn "sparkle-run" /f`)
+    await execFileAsync(schtasksPath, ['/delete', '/tn', 'sparkle-run', '/f'], {
+      windowsHide: true
+    })
   } catch {
     // ignore
   }
@@ -152,7 +157,7 @@ export async function deleteElevateTask(): Promise<void> {
 
 export async function checkElevateTask(): Promise<boolean> {
   try {
-    execSync(`%SystemRoot%\\System32\\schtasks.exe /query /tn "sparkle-run"`, { stdio: 'pipe' })
+    await execFileAsync(schtasksPath, ['/query', '/tn', 'sparkle-run'], { windowsHide: true })
     return true
   } catch {
     return false

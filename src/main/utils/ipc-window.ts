@@ -2,10 +2,31 @@ import { app, BrowserWindow } from 'electron'
 import { registerIpcHandler } from './ipc-registration'
 import { ipcErrorWrapper } from './ipc-error'
 import { setNotQuitDialog } from '../resolve/appLifecycle'
-import { showTrayIcon, closeTrayIcon, updateTrayIcon, setDockVisible, copyEnv } from '../resolve/tray'
-import { applyTheme, fetchThemes, importThemes, readTheme, resolveThemes, writeTheme } from '../resolve/theme'
+import {
+  showTrayIcon,
+  closeTrayIcon,
+  updateTrayIcon,
+  setDockVisible,
+  copyEnv
+} from '../resolve/tray'
+import {
+  applyTheme,
+  fetchThemes,
+  importThemes,
+  readTheme,
+  resolveThemes,
+  writeTheme
+} from '../resolve/theme'
 import { showFloatingWindow, closeFloatingWindow, showContextMenu } from '../resolve/floatingWindow'
-import { setNativeTheme, openFile, readTextFile, readImageFileDataURL, openUWPTool, setupFirewall, resetAppConfig } from '../sys/misc'
+import {
+  setNativeTheme,
+  openFile,
+  readTextFile,
+  readImageFileDataURL,
+  openUWPTool,
+  setupFirewall,
+  resetAppConfig
+} from '../sys/misc'
 import { getFilePath } from '../sys/misc'
 import { findSystemMihomo, logDir } from './dirs'
 import { getInterfaces } from '../sys/interface'
@@ -44,14 +65,18 @@ export function registerWindowIpc(deps: WindowIpcDeps): void {
     w(registerShortcut)(oldShortcut, newShortcut, action)
   )
   r('getGistUrl', w(getGistUrl))
-  r('setNativeTheme', (_e, theme) => { setNativeTheme(theme as 'system' | 'light' | 'dark') })
+  r('setNativeTheme', (_e, theme) => {
+    setNativeTheme(theme as 'system' | 'light' | 'dark')
+  })
   r('setTitleBarOverlay', (_e, overlay) =>
     w(async (overlay): Promise<void> => {
       const win = mainWindow()
       if (typeof win?.setTitleBarOverlay === 'function') win.setTitleBarOverlay(overlay)
     })(overlay)
   )
-  r('setAlwaysOnTop', (_e, alwaysOnTop) => { mainWindow()?.setAlwaysOnTop(alwaysOnTop as boolean) })
+  r('setAlwaysOnTop', (_e, alwaysOnTop) => {
+    mainWindow()?.setAlwaysOnTop(alwaysOnTop as boolean)
+  })
   r('isAlwaysOnTop', () => mainWindow()?.isAlwaysOnTop())
   r('showTrayIcon', () => w(showTrayIcon)())
   r('closeTrayIcon', () => w(closeTrayIcon)())
@@ -63,9 +88,15 @@ export function registerWindowIpc(deps: WindowIpcDeps): void {
   r('showFloatingWindow', () => w(showFloatingWindow)())
   r('closeFloatingWindow', () => w(closeFloatingWindow)())
   r('showContextMenu', () => w(showContextMenu)())
-  r('openFile', (_e, type, id, ext) => openFile(type as 'profile' | 'override', id as string, ext as 'yaml' | 'js' | undefined))
-  r('openDevTools', () => { mainWindow()?.webContents.openDevTools() })
-  r('createHeapSnapshot', () => v8.writeHeapSnapshot(path.join(logDir(), `${Date.now()}.heapsnapshot`)))
+  r('openFile', (_e, type, id, ext) =>
+    openFile(type as 'profile' | 'override', id as string, ext as 'yaml' | 'js' | undefined)
+  )
+  r('openDevTools', () => {
+    mainWindow()?.webContents.openDevTools()
+  })
+  r('createHeapSnapshot', () =>
+    v8.writeHeapSnapshot(path.join(logDir(), `${Date.now()}.heapsnapshot`))
+  )
   r('getUserAgent', () => w(getUserAgent)())
   r('generateAgeKeyPair', () => w(generateAgeKeyPair)())
   r('ageIdentityToRecipient', (_e, identity) => w(ageIdentityToRecipient)(identity))
@@ -79,12 +110,20 @@ export function registerWindowIpc(deps: WindowIpcDeps): void {
   r('writeTheme', (_e, theme, css) => w(writeTheme)(theme, css))
   r('applyTheme', (_e, theme) => w(applyTheme)(theme))
   r('copyEnv', (_e, type) => w(copyEnv)(type))
-  r('alert', (_e, msg) => { void showNotification({ title: 'Sparkle', body: msg as string, variant: 'danger' }) })
+  r('alert', (_e, msg) => {
+    void showNotification({ title: 'Sparkle', body: msg as string, variant: 'danger' })
+  })
   r('resetAppConfig', resetAppConfig)
-  r('relaunchApp', () => { setNotQuitDialog(); app.relaunch(); app.quit() })
+  r('relaunchApp', () => {
+    setNotQuitDialog()
+    app.relaunch()
+    app.quit()
+  })
   r('quitWithoutCore', w(quitWithoutCore))
   r('findSystemMihomo', () => findSystemMihomo())
-  r('getFilePath', (_e, ext, title, filterName) => getFilePath(ext as string[], title as string | undefined, filterName as string | undefined))
+  r('getFilePath', (_e, ext, title, filterName) =>
+    getFilePath(ext as string[], title as string | undefined, filterName as string | undefined)
+  )
   r('readTextFile', (_e, filePath) => w(readTextFile)(filePath))
   r('readImageFileDataURL', (_e, filePath) => w(readImageFileDataURL)(filePath))
 }

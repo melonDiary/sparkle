@@ -1,6 +1,6 @@
 /* eslint-disable react/prop-types */
 import { useEffect, useState } from 'react'
-import { dump, load } from 'js-yaml'
+import { stringify as dump, parse as load } from 'yaml'
 import { Button, Modal } from '@heroui-v3/react'
 import { BaseEditor } from '../base/base-editor-lazy'
 import { useAppConfig } from '@renderer/hooks/use-app-config'

@@ -1,5 +1,6 @@
 import { app, globalShortcut, ipcMain } from 'electron'
-import { mainWindow, setNotQuitDialog, triggerMainWindow } from '..'
+import { setNotQuitDialog } from './appLifecycle'
+import { getMainWindow, triggerMainWindow } from './window-ref'
 import {
   getAppConfig,
   getControledMihomoConfig,
@@ -11,6 +12,7 @@ import { patchMihomoConfig } from '../core/mihomoApi'
 import { quitWithoutCore, restartCore } from '../core/manager'
 import { floatingWindow, triggerFloatingWindow } from './floatingWindow'
 import { showNotification } from '../utils/notification'
+import { appendAppLog } from '../utils/log'
 import { IPC_EVENTS } from '../../shared/ipc'
 
 export async function registerShortcut(
@@ -47,7 +49,7 @@ export async function registerShortcut(
           void showNotification({
             title: `系统代理已${!enable ? '开启' : '关闭'}`
           })
-          mainWindow?.webContents.send(IPC_EVENTS.APP_CONFIG_UPDATED)
+          getMainWindow()?.webContents.send(IPC_EVENTS.APP_CONFIG_UPDATED)
           floatingWindow?.webContents.send(IPC_EVENTS.APP_CONFIG_UPDATED)
         } catch {
           // ignore
@@ -70,7 +72,7 @@ export async function registerShortcut(
           void showNotification({
             title: `虚拟网卡已${!enable ? '开启' : '关闭'}`
           })
-          mainWindow?.webContents.send(IPC_EVENTS.CONTROLLED_MIHOMO_CONFIG_UPDATED)
+          getMainWindow()?.webContents.send(IPC_EVENTS.CONTROLLED_MIHOMO_CONFIG_UPDATED)
           floatingWindow?.webContents.send(IPC_EVENTS.APP_CONFIG_UPDATED)
         } catch {
           // ignore
@@ -86,7 +88,7 @@ export async function registerShortcut(
         void showNotification({
           title: '已切换至规则模式'
         })
-        mainWindow?.webContents.send(IPC_EVENTS.CONTROLLED_MIHOMO_CONFIG_UPDATED)
+        getMainWindow()?.webContents.send(IPC_EVENTS.CONTROLLED_MIHOMO_CONFIG_UPDATED)
         ipcMain.emit(IPC_EVENTS.UPDATE_TRAY_MENU)
       })
     }
@@ -97,7 +99,7 @@ export async function registerShortcut(
         void showNotification({
           title: '已切换至全局模式'
         })
-        mainWindow?.webContents.send(IPC_EVENTS.CONTROLLED_MIHOMO_CONFIG_UPDATED)
+        getMainWindow()?.webContents.send(IPC_EVENTS.CONTROLLED_MIHOMO_CONFIG_UPDATED)
         ipcMain.emit(IPC_EVENTS.UPDATE_TRAY_MENU)
       })
     }
@@ -108,7 +110,7 @@ export async function registerShortcut(
         void showNotification({
           title: '已切换至直连模式'
         })
-        mainWindow?.webContents.send(IPC_EVENTS.CONTROLLED_MIHOMO_CONFIG_UPDATED)
+        getMainWindow()?.webContents.send(IPC_EVENTS.CONTROLLED_MIHOMO_CONFIG_UPDATED)
         ipcMain.emit(IPC_EVENTS.UPDATE_TRAY_MENU)
       })
     }
@@ -129,79 +131,47 @@ export async function registerShortcut(
   throw new Error('Unknown action')
 }
 
+type ShortcutConfigKey =
+  | 'showWindowShortcut'
+  | 'showFloatingWindowShortcut'
+  | 'triggerSysProxyShortcut'
+  | 'triggerTunShortcut'
+  | 'ruleModeShortcut'
+  | 'globalModeShortcut'
+  | 'directModeShortcut'
+  | 'quitWithoutCoreShortcut'
+  | 'restartAppShortcut'
+
 export async function initShortcut(): Promise<void> {
-  const {
-    showFloatingWindowShortcut,
-    showWindowShortcut,
-    triggerSysProxyShortcut,
-    triggerTunShortcut,
-    ruleModeShortcut,
-    globalModeShortcut,
-    directModeShortcut,
-    quitWithoutCoreShortcut,
-    restartAppShortcut
-  } = await getAppConfig()
-  if (showWindowShortcut) {
+  const appConfig = await getAppConfig()
+
+  const shortcutEntries: [ShortcutConfigKey, ShortcutConfigKey][] = [
+    ['showWindowShortcut', 'showWindowShortcut'],
+    ['showFloatingWindowShortcut', 'showFloatingWindowShortcut'],
+    ['triggerSysProxyShortcut', 'triggerSysProxyShortcut'],
+    ['triggerTunShortcut', 'triggerTunShortcut'],
+    ['ruleModeShortcut', 'ruleModeShortcut'],
+    ['globalModeShortcut', 'globalModeShortcut'],
+    ['directModeShortcut', 'directModeShortcut'],
+    ['quitWithoutCoreShortcut', 'quitWithoutCoreShortcut'],
+    ['restartAppShortcut', 'restartAppShortcut']
+  ]
+
+  for (const [configKey, action] of shortcutEntries) {
+    const shortcut = appConfig[configKey]
+    if (!shortcut) continue
+    if (typeof shortcut !== 'string') continue
     try {
-      await registerShortcut('', showWindowShortcut, 'showWindowShortcut')
-    } catch {
-      // ignore
-    }
-  }
-  if (showFloatingWindowShortcut) {
-    try {
-      await registerShortcut('', showFloatingWindowShortcut, 'showFloatingWindowShortcut')
-    } catch {
-      // ignore
-    }
-  }
-  if (triggerSysProxyShortcut) {
-    try {
-      await registerShortcut('', triggerSysProxyShortcut, 'triggerSysProxyShortcut')
-    } catch {
-      // ignore
-    }
-  }
-  if (triggerTunShortcut) {
-    try {
-      await registerShortcut('', triggerTunShortcut, 'triggerTunShortcut')
-    } catch {
-      // ignore
-    }
-  }
-  if (ruleModeShortcut) {
-    try {
-      await registerShortcut('', ruleModeShortcut, 'ruleModeShortcut')
-    } catch {
-      // ignore
-    }
-  }
-  if (globalModeShortcut) {
-    try {
-      await registerShortcut('', globalModeShortcut, 'globalModeShortcut')
-    } catch {
-      // ignore
-    }
-  }
-  if (directModeShortcut) {
-    try {
-      await registerShortcut('', directModeShortcut, 'directModeShortcut')
-    } catch {
-      // ignore
-    }
-  }
-  if (quitWithoutCoreShortcut) {
-    try {
-      await registerShortcut('', quitWithoutCoreShortcut, 'quitWithoutCoreShortcut')
-    } catch {
-      // ignore
-    }
-  }
-  if (restartAppShortcut) {
-    try {
-      await registerShortcut('', restartAppShortcut, 'restartAppShortcut')
-    } catch {
-      // ignore
+      await registerShortcut('', shortcut, action)
+    } catch (error) {
+      // A failed registration must not block the remaining shortcuts, but it
+      // should not be silent either: the user expects the binding to work.
+      await appendAppLog(`[Shortcut]: register ${action} failed, ${error}\n`).catch(() => {})
+      void showNotification({
+        title: '快捷键注册失败',
+        body: `${shortcut} 可能已被其他应用占用`,
+        variant: 'warning'
+      })
     }
   }
 }

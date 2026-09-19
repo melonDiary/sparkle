@@ -1,9 +1,9 @@
 import axios, { AxiosInstance } from 'axios'
 import { getAppConfig, getControledMihomoConfig } from '../config'
-import { mainWindow } from '..'
+import { getMainWindow } from '../resolve/window-ref'
 import WebSocket from 'ws'
 import { customTrayWindow, tray } from '../resolve/tray'
-import { calcTraffic } from '../utils/calc'
+import { calcTraffic } from '../../shared/utils/calc'
 import { getRuntimeConfig } from './factory'
 import { floatingWindow } from '../resolve/floatingWindow'
 import { mihomoIpcPath, serviceIpcPath } from '../utils/dirs'
@@ -16,7 +16,7 @@ import { createLatestSender } from '../utils/latest-sender'
 let axiosIns: AxiosInstance = null!
 
 const mihomoTrafficSender = createLatestSender(100, (json: ControllerTraffic) => {
-  mainWindow?.webContents.send(IPC_EVENTS.MIHOMO_TRAFFIC, json)
+  getMainWindow()?.webContents.send(IPC_EVENTS.MIHOMO_TRAFFIC, json)
   if (process.platform !== 'linux') {
     tray?.setToolTip(
       '↑' +
@@ -31,7 +31,7 @@ const mihomoTrafficSender = createLatestSender(100, (json: ControllerTraffic) =>
   }
 })
 const mihomoConnectionsSender = createLatestSender(200, (json: ControllerConnections) => {
-  mainWindow?.webContents.send(IPC_EVENTS.MIHOMO_CONNECTIONS, json)
+  getMainWindow()?.webContents.send(IPC_EVENTS.MIHOMO_CONNECTIONS, json)
 })
 
 const mihomoTrafficStream = createMihomoStream({
@@ -106,7 +106,7 @@ function handleMihomoTrafficMessage(data: string): void {
 }
 
 function handleMihomoMemoryMessage(data: string): void {
-  mainWindow?.webContents.send(IPC_EVENTS.MIHOMO_MEMORY, JSON.parse(data) as ControllerMemory)
+  getMainWindow()?.webContents.send(IPC_EVENTS.MIHOMO_MEMORY, JSON.parse(data) as ControllerMemory)
 }
 
 function handleMihomoLogsMessage(data: string): void {

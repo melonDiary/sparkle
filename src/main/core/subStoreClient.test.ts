@@ -25,11 +25,17 @@ describe('subStoreClient', () => {
   })
 
   it('uses a custom Sub-Store URL and returns the API payload', async () => {
-    getAppConfig.mockResolvedValue({ useCustomSubStore: true, customSubStoreUrl: 'http://store///' })
+    getAppConfig.mockResolvedValue({
+      useCustomSubStore: true,
+      customSubStoreUrl: 'http://store///'
+    })
     axiosGet.mockResolvedValue({ data: { data: ['sub'] } })
 
     await expect(requestSubStore<{ id: string }[]>('api/subs')).resolves.toEqual(['sub'])
-    expect(axiosGet).toHaveBeenCalledWith('http://store/api/subs', expect.objectContaining({ timeout: 30000 }))
+    expect(axiosGet).toHaveBeenCalledWith(
+      'http://store/api/subs',
+      expect.objectContaining({ timeout: 30000 })
+    )
   })
 
   it('rejects an empty custom URL', async () => {

@@ -22,7 +22,16 @@ concurrency:
 
 jobs:
   checks:
-    runs-on: ubuntu-latest
+    # All three platforms matter here: the tests cover platform-specific
+    # branches (unix socket vs named pipe, `which` vs `where`, autostart
+    # paths), and a Linux-only job previously hid a test file that only
+    # failed on Windows. macOS adds darwin branches (osascript, TUN device
+    # naming) that neither other runner exercises.
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
     timeout-minutes: 15
 
     steps:
@@ -46,6 +55,9 @@ jobs:
       # scripts enabled here.
       - name: Install Dependencies
         run: pnpm install --frozen-lockfile --ignore-scripts
+
+      - name: Format check
+        run: pnpm exec prettier --check .
 
       - name: Lint
         run: pnpm lint:check

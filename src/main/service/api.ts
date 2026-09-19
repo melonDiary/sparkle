@@ -5,6 +5,7 @@ import { KeyManager } from './key'
 import { serviceIpcPath } from '../utils/dirs'
 import { appendAppLog } from '../utils/log'
 import { shouldSkipServiceUnavailableFallback } from './fallback'
+import { createServiceEventStream } from './event-stream'
 
 let serviceAxios: AxiosInstance | null = null
 let keyManager: KeyManager | null = null
@@ -101,6 +102,46 @@ function resolveRequestUrl(instance: AxiosInstance, config: AxiosRequestConfig):
   return new URL(instance.getUri(config))
 }
 
+interface CanonicalRequestParts {
+  timestamp: string
+  nonce: string
+  keyId: string
+  method: string
+  path: string
+  query: string
+  bodyHash: string
+}
+
+function buildCanonicalString(parts: CanonicalRequestParts): string {
+  return [
+    'SPARKLE-AUTH-V2',
+    parts.timestamp,
+    parts.nonce,
+    parts.keyId,
+    parts.method.toUpperCase(),
+    parts.path || '/',
+    parts.query,
+    parts.bodyHash
+  ].join('\n')
+}
+
+function buildServiceAuthHeaders(
+  keyId: string,
+  timestamp: string,
+  nonce: string,
+  bodyHash: string,
+  signature: string
+): Record<string, string> {
+  return {
+    'X-Auth-Version': '2',
+    'X-Key-Id': keyId,
+    'X-Nonce': nonce,
+    'X-Content-SHA256': bodyHash,
+    'X-Timestamp': timestamp,
+    'X-Signature': signature
+  }
+}
+
 function buildCanonicalRequest(
   instance: AxiosInstance,
   config: AxiosRequestConfig,
@@ -110,19 +151,16 @@ function buildCanonicalRequest(
   bodyHash: string
 ): string {
   const resolvedUrl = resolveRequestUrl(instance, config)
-  const path = resolvedUrl.pathname || '/'
-  const query = canonicalizeQuery(resolvedUrl)
 
-  return [
-    'SPARKLE-AUTH-V2',
+  return buildCanonicalString({
     timestamp,
     nonce,
     keyId,
-    (config.method || 'GET').toUpperCase(),
-    path,
-    query,
+    method: config.method || 'GET',
+    path: resolvedUrl.pathname,
+    query: canonicalizeQuery(resolvedUrl),
     bodyHash
-  ].join('\n')
+  })
 }
 
 function signServiceRequest(
@@ -138,12 +176,10 @@ function signServiceRequest(
     const canonical = buildCanonicalRequest(instance, config, timestamp, nonce, keyId, bodyHash)
     const signature = keyManager.signData(canonical)
 
-    config.headers['X-Auth-Version'] = '2'
-    config.headers['X-Key-Id'] = keyId
-    config.headers['X-Nonce'] = nonce
-    config.headers['X-Content-SHA256'] = bodyHash
-    config.headers['X-Timestamp'] = timestamp
-    config.headers['X-Signature'] = signature
+    Object.assign(
+      config.headers,
+      buildServiceAuthHeaders(keyId, timestamp, nonce, bodyHash, signature)
+    )
   }
 
   return config
@@ -323,26 +359,18 @@ export const getServiceAuthHeaders = (
   const nonce = crypto.randomBytes(16).toString('base64url')
   const keyId = keyManager.getKeyID()
   const urlObj = new URL(pathWithQuery, 'http://localhost')
-  const canonical = [
-    'SPARKLE-AUTH-V2',
+  const canonical = buildCanonicalString({
     timestamp,
     nonce,
     keyId,
-    method.toUpperCase(),
-    urlObj.pathname || '/',
-    canonicalizeQuery(urlObj),
+    method,
+    path: urlObj.pathname,
+    query: canonicalizeQuery(urlObj),
     bodyHash
-  ].join('\n')
+  })
   const signature = keyManager.signData(canonical)
 
-  return {
-    'X-Auth-Version': '2',
-    'X-Key-Id': keyId,
-    'X-Nonce': nonce,
-    'X-Content-SHA256': bodyHash,
-    'X-Timestamp': timestamp,
-    'X-Signature': signature
-  }
+  return buildServiceAuthHeaders(keyId, timestamp, nonce, bodyHash, signature)
 }
 
 export const getServiceAxios = (): AxiosInstance => {
@@ -436,276 +464,62 @@ export const createServiceWebSocket = (pathWithQuery: string): WebSocket => {
   })
 }
 
-export const createCoreEventsWebSocket = (): WebSocket => {
-  return createServiceWebSocket('/core/events')
-}
-
-export const createSysproxyEventsWebSocket = (): WebSocket => {
-  return createServiceWebSocket('/sysproxy/events')
-}
-
 type ServiceCoreEventHandler = (event: ServiceCoreEvent) => void | Promise<void>
 type ServiceCoreEventStreamState = 'connected' | 'disconnected'
 type ServiceCoreEventStreamHandler = (state: ServiceCoreEventStreamState) => void | Promise<void>
 type ServiceSysproxyEventHandler = (event: ServiceSysproxyEvent) => void | Promise<void>
 
-let serviceCoreEventsWs: WebSocket | null = null
-let serviceCoreEventsManualClose = false
-let serviceCoreEventsReconnectTimer: NodeJS.Timeout | null = null
-const serviceCoreEventHandlers = new Set<ServiceCoreEventHandler>()
-const serviceCoreEventStreamHandlers = new Set<ServiceCoreEventStreamHandler>()
+// Both event streams previously duplicated ~150 lines of start/stop/reconnect/
+// dispatch logic. They now share the engine in ./event-stream, with only the
+// socket path, log label, and stream-state emission differing. The public
+// function surface is unchanged so callers need no edits.
+const coreEventStream = createServiceEventStream<ServiceCoreEvent>({
+  label: 'core events',
+  connect: () => createServiceWebSocket('/core/events'),
+  scheduleFallback: scheduleServiceUnavailableFallback,
+  emitStreamState: true,
+  fallbackOnClose: true,
+  parse: (raw) => JSON.parse(raw) as ServiceCoreEvent
+})
 
-let serviceSysproxyEventsWs: WebSocket | null = null
-let serviceSysproxyEventsManualClose = true
-let serviceSysproxyEventsReconnectTimer: NodeJS.Timeout | null = null
-const serviceSysproxyEventHandlers = new Set<ServiceSysproxyEventHandler>()
-
-function closeServiceWebSocket(ws: WebSocket): void {
-  ws.removeAllListeners()
-  ws.on('error', () => {})
-  if (ws.readyState === WebSocket.CLOSED || ws.readyState === WebSocket.CLOSING) {
-    return
-  }
-  ws.close()
-}
+const sysproxyEventStream = createServiceEventStream<ServiceSysproxyEvent>({
+  label: 'sysproxy events',
+  connect: () => createServiceWebSocket('/sysproxy/events'),
+  scheduleFallback: scheduleServiceUnavailableFallback,
+  emitStreamState: false,
+  fallbackOnClose: true,
+  parse: (raw) => JSON.parse(raw) as ServiceSysproxyEvent
+})
 
 export function subscribeServiceCoreEvents(handler: ServiceCoreEventHandler): () => void {
-  serviceCoreEventHandlers.add(handler)
-  return () => {
-    serviceCoreEventHandlers.delete(handler)
-  }
+  return coreEventStream.subscribeEvent(handler)
 }
 
 export function subscribeServiceCoreEventStream(
   handler: ServiceCoreEventStreamHandler
 ): () => void {
-  serviceCoreEventStreamHandlers.add(handler)
-  return () => {
-    serviceCoreEventStreamHandlers.delete(handler)
-  }
+  const wrapped = coreEventStream.subscribeStreamState?.(handler)
+  return wrapped ?? (() => {})
 }
 
 export function subscribeServiceSysproxyEvents(handler: ServiceSysproxyEventHandler): () => void {
-  serviceSysproxyEventHandlers.add(handler)
-  return () => {
-    serviceSysproxyEventHandlers.delete(handler)
-  }
+  return sysproxyEventStream.subscribeEvent(handler)
 }
 
-export async function startServiceCoreEventStream(): Promise<void> {
-  serviceCoreEventsManualClose = false
-  if (
-    serviceCoreEventsWs &&
-    (serviceCoreEventsWs.readyState === WebSocket.OPEN ||
-      serviceCoreEventsWs.readyState === WebSocket.CONNECTING)
-  ) {
-    return
-  }
-
-  if (serviceCoreEventsReconnectTimer) {
-    clearTimeout(serviceCoreEventsReconnectTimer)
-    serviceCoreEventsReconnectTimer = null
-  }
-
-  let ws: WebSocket
-  try {
-    ws = createCoreEventsWebSocket()
-  } catch (error) {
-    await appendAppLog(`[Service]: create core events ws failed, ${error}\n`)
-    scheduleServiceUnavailableFallback(error)
-    scheduleServiceCoreEventReconnect()
-    return
-  }
-
-  serviceCoreEventsWs = ws
-  ws.on('open', () => {
-    dispatchServiceCoreEventStreamState('connected').catch((error) => {
-      appendAppLog(`[Service]: handle core event stream state failed, ${error}\n`).catch(() => {})
-    })
-  })
-  ws.on('message', (data) => {
-    dispatchServiceCoreEvent(data).catch((error) => {
-      appendAppLog(`[Service]: handle core event failed, ${error}\n`).catch(() => {})
-    })
-  })
-  ws.on('close', () => {
-    if (serviceCoreEventsWs === ws) {
-      serviceCoreEventsWs = null
-    }
-    dispatchServiceCoreEventStreamState('disconnected').catch((error) => {
-      appendAppLog(`[Service]: handle core event stream state failed, ${error}\n`).catch(() => {})
-    })
-    if (!serviceCoreEventsManualClose) {
-      scheduleServiceUnavailableFallback(new Error('core events websocket disconnected'))
-      scheduleServiceCoreEventReconnect()
-    }
-  })
-  ws.on('error', (error) => {
-    appendAppLog(`[Service]: core events ws error, ${error}\n`).catch(() => {})
-    if (!serviceCoreEventsManualClose) {
-      scheduleServiceUnavailableFallback(error)
-    }
-  })
-
-  await waitForServiceCoreEventsSocket(ws)
+export function startServiceCoreEventStream(): Promise<void> {
+  return coreEventStream.start()
 }
 
 export function stopServiceCoreEventStream(): void {
-  serviceCoreEventsManualClose = true
-  if (serviceCoreEventsReconnectTimer) {
-    clearTimeout(serviceCoreEventsReconnectTimer)
-    serviceCoreEventsReconnectTimer = null
-  }
-  if (serviceCoreEventsWs) {
-    closeServiceWebSocket(serviceCoreEventsWs)
-    serviceCoreEventsWs = null
-  }
+  coreEventStream.stop()
 }
 
-export async function startServiceSysproxyEventStream(): Promise<void> {
-  serviceSysproxyEventsManualClose = false
-  if (
-    serviceSysproxyEventsWs &&
-    (serviceSysproxyEventsWs.readyState === WebSocket.OPEN ||
-      serviceSysproxyEventsWs.readyState === WebSocket.CONNECTING)
-  ) {
-    return
-  }
-
-  if (serviceSysproxyEventsReconnectTimer) {
-    clearTimeout(serviceSysproxyEventsReconnectTimer)
-    serviceSysproxyEventsReconnectTimer = null
-  }
-
-  let ws: WebSocket
-  try {
-    ws = createSysproxyEventsWebSocket()
-  } catch (error) {
-    await appendAppLog(`[Service]: create sysproxy events ws failed, ${error}\n`)
-    scheduleServiceUnavailableFallback(error)
-    scheduleServiceSysproxyEventReconnect()
-    return
-  }
-
-  serviceSysproxyEventsWs = ws
-  ws.on('message', (data) => {
-    dispatchServiceSysproxyEvent(data).catch((error) => {
-      appendAppLog(`[Service]: handle sysproxy event failed, ${error}\n`).catch(() => {})
-    })
-  })
-  ws.on('close', () => {
-    if (serviceSysproxyEventsWs === ws) {
-      serviceSysproxyEventsWs = null
-    }
-    if (!serviceSysproxyEventsManualClose) {
-      scheduleServiceUnavailableFallback(new Error('sysproxy events websocket disconnected'))
-      scheduleServiceSysproxyEventReconnect()
-    }
-  })
-  ws.on('error', (error) => {
-    appendAppLog(`[Service]: sysproxy events ws error, ${error}\n`).catch(() => {})
-    if (!serviceSysproxyEventsManualClose) {
-      scheduleServiceUnavailableFallback(error)
-    }
-  })
-
-  await waitForServiceSysproxyEventsSocket(ws)
+export function startServiceSysproxyEventStream(): Promise<void> {
+  return sysproxyEventStream.start()
 }
 
 export function stopServiceSysproxyEventStream(): void {
-  serviceSysproxyEventsManualClose = true
-  if (serviceSysproxyEventsReconnectTimer) {
-    clearTimeout(serviceSysproxyEventsReconnectTimer)
-    serviceSysproxyEventsReconnectTimer = null
-  }
-  if (serviceSysproxyEventsWs) {
-    closeServiceWebSocket(serviceSysproxyEventsWs)
-    serviceSysproxyEventsWs = null
-  }
-}
-
-function scheduleServiceCoreEventReconnect(): void {
-  if (serviceCoreEventsManualClose || serviceCoreEventsReconnectTimer) return
-  serviceCoreEventsReconnectTimer = setTimeout(() => {
-    serviceCoreEventsReconnectTimer = null
-    startServiceCoreEventStream().catch((error) => {
-      appendAppLog(`[Service]: reconnect core events ws failed, ${error}\n`).catch(() => {})
-    })
-  }, 1000)
-}
-
-function scheduleServiceSysproxyEventReconnect(): void {
-  if (serviceSysproxyEventsManualClose || serviceSysproxyEventsReconnectTimer) return
-  serviceSysproxyEventsReconnectTimer = setTimeout(() => {
-    serviceSysproxyEventsReconnectTimer = null
-    startServiceSysproxyEventStream().catch((error) => {
-      appendAppLog(`[Service]: reconnect sysproxy events ws failed, ${error}\n`).catch(() => {})
-    })
-  }, 1000)
-}
-
-async function waitForServiceCoreEventsSocket(ws: WebSocket): Promise<void> {
-  await new Promise<void>((resolve) => {
-    let settled = false
-    const complete = (): void => {
-      if (settled) return
-      settled = true
-      clearTimeout(timer)
-      ws.off('open', complete)
-      ws.off('error', complete)
-      resolve()
-    }
-    const timer = setTimeout(complete, 1500)
-    ws.once('open', complete)
-    ws.once('error', complete)
-  })
-}
-
-async function waitForServiceSysproxyEventsSocket(ws: WebSocket): Promise<void> {
-  await new Promise<void>((resolve) => {
-    let settled = false
-    const complete = (): void => {
-      if (settled) return
-      settled = true
-      clearTimeout(timer)
-      ws.off('open', complete)
-      ws.off('error', complete)
-      resolve()
-    }
-    const timer = setTimeout(complete, 1500)
-    ws.once('open', complete)
-    ws.once('error', complete)
-  })
-}
-
-async function dispatchServiceCoreEvent(data: WebSocket.RawData): Promise<void> {
-  const raw = Buffer.isBuffer(data) ? data.toString('utf8') : data.toString()
-  const event = JSON.parse(raw) as ServiceCoreEvent
-  for (const handler of serviceCoreEventHandlers) {
-    await Promise.resolve(handler(event)).catch((error) => {
-      appendAppLog(`[Service]: core event handler failed, ${error}\n`).catch(() => {})
-    })
-  }
-}
-
-async function dispatchServiceSysproxyEvent(data: WebSocket.RawData): Promise<void> {
-  const raw = Buffer.isBuffer(data) ? data.toString('utf8') : data.toString()
-  const event = JSON.parse(raw) as ServiceSysproxyEvent
-  for (const handler of serviceSysproxyEventHandlers) {
-    await Promise.resolve(handler(event)).catch((error) => {
-      appendAppLog(`[Service]: sysproxy event handler failed, ${error}\n`).catch(() => {})
-    })
-  }
-}
-
-async function dispatchServiceCoreEventStreamState(
-  state: ServiceCoreEventStreamState
-): Promise<void> {
-  for (const handler of serviceCoreEventStreamHandlers) {
-    await Promise.resolve(handler(state)).catch((error) => {
-      appendAppLog(`[Service]: core event stream state handler failed, ${error}\n`).catch(() => {})
-    })
-  }
+  sysproxyEventStream.stop()
 }
 
 export const startCore = async (

@@ -28,9 +28,7 @@ export async function waitForSubStoreReady(port: number, timeoutMs = 10000): Pro
       })
     }
   }
-  throw new Error(
-    `Sub-Store 服务启动超时：${describeHttpError(lastError)}`
-  )
+  throw new Error(`Sub-Store 服务启动超时：${describeHttpError(lastError)}`)
 }
 
 export async function requestSubStore<T>(endpoint: string): Promise<T> {
@@ -43,7 +41,9 @@ export async function requestSubStore<T>(endpoint: string): Promise<T> {
     })
     return response.data.data
   } catch (error) {
-    await appendAppLog(`[SubStore]: request ${endpoint} failed, ${describeHttpError(error)}\n`).catch(() => {})
+    await appendAppLog(
+      `[SubStore]: request ${endpoint} failed, ${describeHttpError(error)}\n`
+    ).catch(() => {})
     throw error
   }
 }

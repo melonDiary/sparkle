@@ -2,7 +2,7 @@ import { BrowserWindow } from 'electron'
 import { createWriteStream, type WriteStream } from 'fs'
 import { readFile, stat, writeFile } from 'fs/promises'
 import { Writable } from 'stream'
-import { getAppConfig } from '../config/app'
+import { getAppConfig, getAppConfigRevision } from '../config/app'
 import { appLogPath, coreLogPath, substoreLogPath } from './dirs'
 import { IPC_EVENTS } from '../../shared/ipc'
 
@@ -46,14 +46,31 @@ function resolveLogPath(target: LogTarget): string {
   }
 }
 
-async function shouldSaveLogs(): Promise<boolean> {
-  const { saveLogs = true } = await getAppConfig()
-  return saveLogs
+interface LogSettings {
+  saveLogs: boolean
+  maxLogFileSizeBytes: number
 }
 
-async function getMaxLogFileSizeBytes(): Promise<number> {
-  const { maxLogFileSizeMB = 20 } = await getAppConfig()
-  return Math.max(1, Math.floor(maxLogFileSizeMB) || 1) * 1024 * 1024
+let logSettingsCache: { revision: number; settings: LogSettings } | undefined
+
+/**
+ * The log settings are read on every append, which happens for each core stdout
+ * chunk. They are derived once per app-config revision instead of re-reading the
+ * config twice per line.
+ */
+async function getLogSettings(): Promise<LogSettings> {
+  const { saveLogs = true, maxLogFileSizeMB = 20 } = await getAppConfig()
+  const revision = getAppConfigRevision()
+  if (logSettingsCache?.revision === revision) {
+    return logSettingsCache.settings
+  }
+
+  const settings: LogSettings = {
+    saveLogs,
+    maxLogFileSizeBytes: Math.max(1, Math.floor(maxLogFileSizeMB) || 1) * 1024 * 1024
+  }
+  logSettingsCache = { revision, settings }
+  return settings
 }
 
 function getWriteStream(target: LogTarget): WriteStream {
@@ -341,10 +358,11 @@ function normalizeWriteChunk(chunk: string | Buffer): Buffer {
 
 async function appendLog(target: LogTarget, content: LogContent): Promise<void> {
   if (isEmptyLogContent(content) || (logWriteRetryAt.get(target) || 0) > Date.now()) return
-  if (!(await shouldSaveLogs())) return
+
+  const { saveLogs, maxLogFileSizeBytes } = await getLogSettings()
+  if (!saveLogs) return
 
   const path = resolveLogPath(target)
-  const maxLogFileSizeBytes = await getMaxLogFileSizeBytes()
   const contentSize = getLogContentSize(content)
   const currentQueue = writeQueue[target].catch(() => {})
   writeQueue[target] = (async () => {

@@ -84,11 +84,14 @@ export const ProfileConfigProvider: React.FC<{ children: ReactNode }> = ({ child
   }
 
   useEffect(() => {
-    window.electron.ipcRenderer.on(IPC_EVENTS.PROFILE_CONFIG_UPDATED, () => {
-      mutateProfileConfig()
-    })
+    const unsubscribeProfileConfigUpdated = window.electron.ipcRenderer.on(
+      IPC_EVENTS.PROFILE_CONFIG_UPDATED,
+      () => {
+        mutateProfileConfig()
+      }
+    )
     return (): void => {
-      window.electron.ipcRenderer.removeAllListeners(IPC_EVENTS.PROFILE_CONFIG_UPDATED)
+      unsubscribeProfileConfigUpdated()
     }
   }, [])
 

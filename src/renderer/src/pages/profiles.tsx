@@ -131,7 +131,13 @@ const Profiles: React.FC = () => {
     if (importing || !importUrl.trim()) return
     setImporting(true)
     try {
-      await addProfileItem({ name: '', type: 'remote', url: importUrl.trim(), useProxy, autoUpdate: true })
+      await addProfileItem({
+        name: '',
+        type: 'remote',
+        url: importUrl.trim(),
+        useProxy,
+        autoUpdate: true
+      })
       setUrl('')
       notify('订阅导入成功', { variant: 'success' })
     } finally {

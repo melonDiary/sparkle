@@ -18,10 +18,7 @@ export function stringifyYaml(data: unknown): string {
 function normalizeCommonYamlPunctuation(content: string): string {
   // Full-width commas are frequently pasted into flow mappings. Normalize only
   // when the next token is clearly another mapping key or a merge key.
-  return content.replace(
-    /([\\u4e00-\\u9fff])，(?=\\s*(?:<<|[A-Za-z0-9_'"]+\\s*:))/g,
-    '$1,'
-  )
+  return content.replace(/([\\u4e00-\\u9fff])，(?=\\s*(?:<<|[A-Za-z0-9_'"]+\\s*:))/g, '$1,')
 }
 
 function addYamlTagsToProxiesShortId(yamlContent: string, includeNestedProxies = false): string {

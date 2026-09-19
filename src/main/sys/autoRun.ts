@@ -1,10 +1,9 @@
 import { exePath, homeDir, taskDir } from '../utils/dirs'
 import { execWithElevation } from '../utils/elevation'
 import { mkdir, readFile, rm, writeFile } from 'fs/promises'
-import { execFile } from 'child_process'
 import { existsSync } from 'fs'
-import { promisify } from 'util'
 import path from 'path'
+import { execFileAsync } from '../utils/exec'
 
 const appName = 'sparkle'
 
@@ -60,9 +59,8 @@ const taskXml = `<?xml version="1.0" encoding="UTF-16"?>
 
 export async function checkAutoRun(): Promise<boolean> {
   if (process.platform === 'win32') {
-    const execFilePromise = promisify(execFile)
     try {
-      const { stdout } = await execFilePromise('schtasks.exe', ['/query', '/tn', `${appName}`])
+      const { stdout } = await execFileAsync('schtasks.exe', ['/query', '/tn', `${appName}`])
       return stdout.includes(appName)
     } catch (e) {
       return false
@@ -70,8 +68,7 @@ export async function checkAutoRun(): Promise<boolean> {
   }
 
   if (process.platform === 'darwin') {
-    const execFilePromise = promisify(execFile)
-    const { stdout } = await execFilePromise('osascript', [
+    const { stdout } = await execFileAsync('osascript', [
       '-e',
       `tell application "System Events" to get the name of every login item`
     ])
@@ -98,8 +95,7 @@ export async function enableAutoRun(): Promise<void> {
     ])
   }
   if (process.platform === 'darwin') {
-    const execFilePromise = promisify(execFile)
-    await execFilePromise('osascript', [
+    await execFileAsync('osascript', [
       '-e',
       `tell application "System Events" to make login item at end with properties {path:"${exePath().split('.app')[0]}.app", hidden:false}`
     ])
@@ -134,8 +130,7 @@ export async function disableAutoRun(): Promise<void> {
     await execWithElevation('schtasks.exe', ['/delete', '/tn', `${appName}`, '/f'])
   }
   if (process.platform === 'darwin') {
-    const execFilePromise = promisify(execFile)
-    await execFilePromise('osascript', [
+    await execFileAsync('osascript', [
       '-e',
       `tell application "System Events" to delete login item "${exePath().split('.app')[0].replace('/Applications/', '')}"`
     ])

@@ -1,7 +1,9 @@
-import { ipcMain, type BrowserWindow, type IpcMainEvent } from 'electron'
+import { type BrowserWindow } from 'electron'
 import { addOverrideItem, addProfileItem } from '../config'
 import { getUserAgent } from '../utils/userAgent'
+import { parseContentDispositionFilename } from '../utils/http'
 import { showNotification } from '../utils/notification'
+import { waitForIpcConfirmation } from '../utils/ipc-confirm'
 import { IPC_EVENTS } from '../../shared/ipc'
 
 interface DeepLinkContext {
@@ -99,7 +101,8 @@ async function showProfileInstallConfirm(
       })
 
       if (response.headers['content-disposition']) {
-        extractedName = parseFilename(response.headers['content-disposition'])
+        extractedName =
+          parseContentDispositionFilename(response.headers['content-disposition']) ?? null
       }
     } catch {
       // Filename discovery is optional; the actual import reports request errors.
@@ -113,20 +116,9 @@ async function showProfileInstallConfirm(
         url,
         name: extractedName || name
       })
-      const handleConfirm = (_event: IpcMainEvent, confirmed: boolean): void => {
-        ipcMain.off(IPC_EVENTS.PROFILE_INSTALL_CONFIRM_RESULT, handleConfirm)
-        resolve(confirmed)
-      }
-      ipcMain.once(IPC_EVENTS.PROFILE_INSTALL_CONFIRM_RESULT, handleConfirm)
+      void waitForIpcConfirmation(IPC_EVENTS.PROFILE_INSTALL_CONFIRM_RESULT).then(resolve)
     }, delay)
   })
-}
-
-function parseFilename(str: string): string {
-  if (str.match(/filename\*=.*''/)) {
-    return decodeURIComponent(str.split(/filename\*=.*''/)[1])
-  }
-  return str.split('filename=')[1]?.replace(/"/g, '') || ''
 }
 
 async function showOverrideInstallConfirm(
@@ -151,11 +143,7 @@ async function showOverrideInstallConfirm(
         url,
         name: finalName
       })
-      const handleConfirm = (_event: IpcMainEvent, confirmed: boolean): void => {
-        ipcMain.off(IPC_EVENTS.OVERRIDE_INSTALL_CONFIRM_RESULT, handleConfirm)
-        resolve(confirmed)
-      }
-      ipcMain.once(IPC_EVENTS.OVERRIDE_INSTALL_CONFIRM_RESULT, handleConfirm)
+      void waitForIpcConfirmation(IPC_EVENTS.OVERRIDE_INSTALL_CONFIRM_RESULT).then(resolve)
     }, delay)
   })
 }

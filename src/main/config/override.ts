@@ -39,8 +39,8 @@ export async function updateOverrideItem(item: OverrideItem): Promise<void> {
 export async function addOverrideItem(item: Partial<OverrideItem>): Promise<void> {
   const config = await getOverrideConfig()
   const newItem = await createOverride(item)
-  if (await getOverrideItem(item.id)) {
-    updateOverrideItem(newItem)
+  if (await getOverrideItem(newItem.id)) {
+    await updateOverrideItem(newItem)
   } else {
     config.items.push(newItem)
   }
@@ -52,7 +52,11 @@ export async function removeOverrideItem(id: string): Promise<void> {
   const item = await getOverrideItem(id)
   config.items = config.items?.filter((item) => item.id !== id)
   await setOverrideConfig(config)
-  await rm(overridePath(id, item?.ext || 'js'))
+
+  const overrideFilePath = overridePath(id, item?.ext || 'js')
+  if (existsSync(overrideFilePath)) {
+    await rm(overrideFilePath)
+  }
 }
 
 export async function createOverride(item: Partial<OverrideItem>): Promise<OverrideItem> {
@@ -75,71 +79,13 @@ export async function createOverride(item: Partial<OverrideItem>): Promise<Overr
         fingerprint: item.fingerprint,
         proxyPort: mixedPort
       })
-      /* legacy remote request implementation removed
-      if (item.fingerprint) {
-          const expected = item.fingerprint.replace(/:/g, '').toUpperCase()
-          const verify = (s: tls.TLSSocket) => {
-            if (getCertFingerprint(s.getPeerCertificate()) !== expected)
-              s.destroy(new Error('证书指纹不匹配'))
-          }
-
-          if (mixedPort != 0) {
-            const urlObj = new URL(item.url)
-            const hostname = urlObj.hostname
-            const port = urlObj.port || '443'
-            httpsAgent.createConnection = (_, cb) => {
-              const req = http.request({
-                host: '127.0.0.1',
-                port: mixedPort,
-                method: 'CONNECT',
-                path: `${hostname}:${port}`
-              })
-
-              req.on('connect', (res, sock, head) => {
-                if (res.statusCode !== 200) {
-                  cb?.(new Error(`代理连接失败，状态码：${res.statusCode}`), null!)
-                  return
-                }
-                if (head.length > 0) sock.unshift(head)
-                const tls$ = tls.connect(
-                  { socket: sock, servername: hostname, rejectUnauthorized: false },
-                  () => verify(tls$)
-                )
-                cb?.(null, tls$)
-              })
-
-              req.on('error', (e) => cb?.(e, null!))
-              req.end()
-              return null!
-            }
-          } else {
-            const conn = httpsAgent.createConnection.bind(httpsAgent)
-            httpsAgent.createConnection = (o, c) => {
-              const sock = conn(o, c)
-              sock?.once('secureConnect', function (this: tls.TLSSocket) {
-                verify(this)
-              })
-              return sock
-            }
-          }
-        }
-
-        /*
-          httpsAgent,
-          ...(mixedPort != 0 &&
-            !item.fingerprint && {
-              proxy: { protocol: 'http', host: '127.0.0.1', port: mixedPort }
-            }),
-          responseType: 'text',
-          timeout: DOWNLOAD_TIMEOUT        })
-      */
       const data = res.data
       await setOverride(id, newItem.ext, data)
       break
     }
     case 'local': {
       const data = item.file || ''
-      setOverride(id, newItem.ext, data)
+      await setOverride(id, newItem.ext, data)
       break
     }
   }

@@ -1,7 +1,7 @@
 import { Button, Card, CardBody, CardFooter, Tooltip } from '@heroui/react'
 import { FaCircleArrowDown, FaCircleArrowUp } from 'react-icons/fa6'
 import { useLocation, useNavigate } from 'react-router-dom'
-import { calcTraffic } from '@renderer/utils/calc'
+import { calcTraffic } from '../../../../shared/utils/calc'
 import React, { useEffect, useState, useRef } from 'react'
 import { useSortable } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
@@ -111,10 +111,13 @@ const ConnCard: React.FC<Props> = (props) => {
       }
     }
 
-    window.electron.ipcRenderer.on(IPC_EVENTS.MIHOMO_TRAFFIC, handleTraffic)
+    const unsubscribeTraffic = window.electron.ipcRenderer.on(
+      IPC_EVENTS.MIHOMO_TRAFFIC,
+      handleTraffic
+    )
 
     return (): void => {
-      window.electron.ipcRenderer.removeAllListeners(IPC_EVENTS.MIHOMO_TRAFFIC)
+      unsubscribeTraffic()
       if (updateTimeoutRef.current) {
         clearTimeout(updateTimeoutRef.current)
       }
