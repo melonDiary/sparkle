@@ -356,6 +356,12 @@ function normalizeWriteChunk(chunk: string | Buffer): Buffer {
   return Buffer.isBuffer(chunk) ? chunk : Buffer.from(String(chunk), 'utf-8')
 }
 
+function logTimestamp(): string {
+  const now = new Date()
+  const pad = (n: number): string => String(n).padStart(2, '0')
+  return `[${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())} ${pad(now.getHours())}:${pad(now.getMinutes())}:${pad(now.getSeconds())}]`
+}
+
 async function appendLog(target: LogTarget, content: LogContent): Promise<void> {
   if (isEmptyLogContent(content) || (logWriteRetryAt.get(target) || 0) > Date.now()) return
 
@@ -363,7 +369,13 @@ async function appendLog(target: LogTarget, content: LogContent): Promise<void> 
   if (!saveLogs) return
 
   const path = resolveLogPath(target)
-  const contentSize = getLogContentSize(content)
+  // Timestamped app-log lines make restart triggers diagnosable after the fact;
+  // core/sub-store logs carry their own timestamps from the source process.
+  const stampedContent =
+    target === 'app'
+      ? `${logTimestamp()} ${normalizeWriteChunk(content)}`
+      : normalizeWriteChunk(content)
+  const contentSize = getLogContentSize(stampedContent)
   const currentQueue = writeQueue[target].catch(() => {})
   writeQueue[target] = (async () => {
     await currentQueue
@@ -371,7 +383,7 @@ async function appendLog(target: LogTarget, content: LogContent): Promise<void> 
     try {
       await new Promise<void>((resolve, reject) => {
         const stream = getWriteStream(target)
-        stream.write(content, (error) => {
+        stream.write(stampedContent, (error) => {
           if (error) {
             reject(error)
           } else {

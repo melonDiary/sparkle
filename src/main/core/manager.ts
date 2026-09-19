@@ -45,6 +45,7 @@ import {
 } from '../utils/notification'
 import { createCoreHookWaiter, createCoreStartupHook } from './startupHook'
 import { stopChildProcess } from './process-control'
+import { registerCoreCrash, registerCoreStartSuccess } from './crash-loop-guard'
 import { recoverDNS, setPublicDNS, startNetworkDetectionController } from './network'
 import { checkProfile } from './profile-check'
 import {
@@ -213,6 +214,9 @@ async function startMihomoApiStreams(): Promise<void> {
   await startMihomoLogs()
   await startMihomoMemory()
   directCoreState.retry = 10
+  // A completed startup clears the crash-loop window so the auto-restart
+  // circuit breaker only trips on crashes that happen in quick succession.
+  registerCoreStartSuccess()
 }
 
 async function completeCoreInitialization(logLevel?: LogLevel): Promise<void> {
@@ -539,13 +543,13 @@ async function startCoreInternal(detached = false): Promise<Promise<void>[]> {
     await rm(path.join(dataDir(), 'core.pid.json')).catch(() => {})
     resetMihomoApi()
     await appendAppLog(`[Manager]: Core closed, code: ${code}, signal: ${signal}\n`)
-    if (directCoreState.retry) {
-      await appendAppLog(`[Manager]: Try Restart Core\n`)
-      directCoreState.retry--
-      await restartCore()
-    } else {
+    if (!directCoreState.retry || !registerCoreCrash()) {
       await stopCore()
+      return
     }
+    await appendAppLog(`[Manager]: Try Restart Core\n`)
+    directCoreState.retry--
+    await restartCore()
   })
   child.stdout?.pipe(stdout)
   child.stderr?.pipe(stderr)

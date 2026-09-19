@@ -100,9 +100,30 @@ export function getAppConfigSync(): AppConfig {
   try {
     const raw = readFileSync(appConfigPath(), 'utf-8')
     const data = parseYaml<AppConfig>(raw)
-    appConfigSyncCache = typeof data === 'object' && data !== null ? data : defaultConfig
+    appConfigSyncCache =
+      typeof data === 'object' && data !== null && isValidConfig(data)
+        ? data
+        : readConfigBackupSync()
   } catch (e) {
-    appConfigSyncCache = defaultConfig
+    appConfigSyncCache = readConfigBackupSync()
   }
   return appConfigSyncCache
+}
+
+/**
+ * Mirrors the async path's backup fallback for callers that must read the
+ * config synchronously (early startup), so a corrupt config.yaml falls back to
+ * the last good config instead of silently resetting to defaults.
+ */
+function readConfigBackupSync(): AppConfig {
+  try {
+    const backup = readFileSync(`${appConfigPath()}.backup`, 'utf-8')
+    const parsed = parseYaml<AppConfig>(backup)
+    if (typeof parsed === 'object' && parsed !== null && isValidConfig(parsed)) {
+      return parsed
+    }
+  } catch {
+    // Fall through to defaults.
+  }
+  return defaultConfig
 }
